@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; python wp_setup.py 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); $env:PYTHONIOENCODING = \"utf-8\"; cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; python wp_setup.py 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); $env:PYTHONIOENCODING = \"utf-8\"; cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; python create_plugins.py; python test_connections.py 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); $env:PYTHONIOENCODING = \"utf-8\"; cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; python mobiletimes_agent.py --test-post 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); $env:PYTHONIOENCODING = \"utf-8\"; cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; python check_meta.py 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); $env:PYTHONIOENCODING = \"utf-8\"; cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; python verify_meta.py 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); $env:PYTHONIOENCODING = \"utf-8\"; cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; python mobiletimes_agent.py --run-now 2>&1)",
+      "PowerShell(Set-Location \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; $env:PYTHONIOENCODING = \"utf-8\"; python -m py_compile mobiletimes_agent.py; if \\($LASTEXITCODE -eq 0\\) { \"SYNTAX OK\" } else { \"SYNTAX ERROR\" })",
+      "PowerShell(Set-Location \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; $env:PYTHONIOENCODING = \"utf-8\"; py -m py_compile mobiletimes_agent.py 2>&1; if \\($LASTEXITCODE -eq 0\\) { \"mobiletimes_agent: SYNTAX OK\" } else { \"mobiletimes_agent: SYNTAX ERROR\" }; py -m py_compile breaking_monitor.py 2>&1; if \\($LASTEXITCODE -eq 0\\) { \"breaking_monitor: SYNTAX OK\" } else { \"breaking_monitor: SYNTAX ERROR\" })",
+      "PowerShell($userPath = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); $userPath -split \";\" | Select-String \"python\" -SimpleMatch -CaseSensitive:$false)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); Set-Location \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; $env:PYTHONIOENCODING = \"utf-8\"; python -m py_compile mobiletimes_agent.py 2>&1; if \\($LASTEXITCODE -eq 0\\) { \"mobiletimes_agent: SYNTAX OK\" } else { \"SYNTAX ERROR ^\" }; python -m py_compile breaking_monitor.py 2>&1; if \\($LASTEXITCODE -eq 0\\) { \"breaking_monitor: SYNTAX OK\" } else { \"SYNTAX ERROR ^\" })",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); Set-Location \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; $env:PYTHONIOENCODING = \"utf-8\"; python -m py_compile mobiletimes_agent.py 2>&1; if \\($LASTEXITCODE -eq 0\\) { \"SYNTAX OK\" } else { \"SYNTAX ERROR\" })",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; $env:PYTHONIOENCODING=\"utf-8\"; python wp_design_fix.py)",
+      "Read(//c/Users/goyal/.claude/**)",
+      "PowerShell(npx skills add https://github.com/wordpress/agent-skills)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\goyal\\\\.claude\\\\plugins\\\\marketplaces\\\\claude-plugins-official\\\\plugins\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Read(//c/Users/goyal/.claude/skills/wp-performance/**)",
+      "Read(//c/Users/goyal/.agents/skills/wp-performance/**)",
+      "Read(//c/Users/goyal/.claude/skills/wp-project-triage/**)",
+      "Read(//c/Users/goyal/.agents/skills/wp-project-triage/**)",
+      "Read(//c/Users/goyal/.claude/skills/seo-audit/**)",
+      "Read(//c/Users/goyal/.agents/skills/seo-audit/**)",
+      "PowerShell(cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; $env:PYTHONIOENCODING=\"utf-8\"; python seo_meta_updater.py)",
+      "PowerShell(cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\\\\manual-install\"; Compress-Archive -Path \"tmt-performance.php\" -DestinationPath \"tmt-performance.zip\" -Force; Write-Host \"ZIP created: $\\(\\(Get-Item tmt-performance.zip\\).Length\\) bytes\")",
+      "WebFetch(domain:search.google.com)",
+      "PowerShell(cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; $env:PYTHONIOENCODING=\"utf-8\"; python mobiletimes_agent.py --run-now 2>&1)",
+      "PowerShell(cd \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\"; $env:PYTHONIOENCODING=\"utf-8\"; python fix_existing_posts.py 2>&1)",
+      "PowerShell(Compress-Archive -Path \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\\\\manual-install\\\\tmt-performance.php\" -DestinationPath \"e:\\\\Projects\\\\Clients\\\\TMT\\\\Automation\\\\manual-install\\\\tmt-performance.zip\" -Force)",
+      "Bash(python entity_schema_updater.py)",
+      "Bash(python pillar_page_creator.py --create-all)",
+      "Bash(timeout 120 tail -f \"C:\\\\Users\\\\goyal\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Projects-Clients-TMT\\\\5c67bb1f-c9cf-476a-8a42-079606caa4bd\\\\tasks\\\\bttjjtp2u.output\")",
+      "Bash(Select-String \"Created:|FAILED|Done|complete|Error\")",
+      "Bash(Select-Object -First 5)",
+      "Bash(python -c ' *)",
+      "Bash(python seo_meta_updater.py)",
+      "Bash(Get-Content \"C:\\\\Users\\\\goyal\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--Projects-Clients-TMT\\\\5c67bb1f-c9cf-476a-8a42-079606caa4bd\\\\tasks\\\\b3e4v6zmf.output\" -Wait -Tail 10)",
+      "Bash(Select-Object -First 60)",
+      "Bash(python seo_pages_updater.py)",
+      "mcp__claude_ai_Ahrefs__site-explorer-metrics",
+      "mcp__claude_ai_Ahrefs__site-explorer-organic-keywords",
+      "mcp__claude_ai_Ahrefs__site-explorer-referring-domains",
+      "mcp__claude_ai_Ahrefs__gsc-keywords"
+    ],
+    "additionalDirectories": [
+      "e:\\Projects\\Clients\\TMT\\.agents"
+    ]
+  }
+}

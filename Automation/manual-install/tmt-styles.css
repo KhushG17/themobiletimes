@@ -1,0 +1,28 @@
+/* ── TMT Article Styles ─────────────────────────────── */
+.tmt-featured-image{margin:0 0 2rem;border-radius:8px;overflow:hidden}
+.tmt-featured-image img{width:100%;height:auto;display:block}
+.tmt-featured-image figcaption{font-size:12px;color:#888;padding:6px 10px;background:#f7f7f7;text-align:right}
+.tmt-intro{font-size:1.15rem;line-height:1.75;border-left:4px solid #CC0000;padding-left:1.25rem;margin-bottom:2rem}
+.tmt-highlights{background:#fff5f5;border:1px solid #ffb3b3;border-radius:8px;padding:1.25rem 1.5rem;margin:1.75rem 0}
+.tmt-highlights h3{font-size:1rem;font-weight:700;color:#CC0000;margin:0 0 .75rem;text-transform:uppercase;letter-spacing:.04em}
+.tmt-highlights ul{margin:0;padding-left:1.25rem}
+.tmt-highlights ul li{margin-bottom:.4rem;font-size:.95rem;line-height:1.55}
+.tmt-toc{background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;padding:1.25rem 1.5rem;margin:1.75rem 0}
+.tmt-toc h3{font-size:.95rem;font-weight:700;color:#333;margin:0 0 .75rem;text-transform:uppercase}
+.tmt-toc ol{margin:0;padding-left:1.4rem}
+.tmt-toc ol li a{color:#CC0000;text-decoration:none;font-weight:500}
+.tmt-quote{border-top:3px solid #CC0000;border-bottom:3px solid #CC0000;margin:2rem 0;padding:1.25rem 1.5rem;font-size:1.12rem;font-style:italic;background:#fff9f9;line-height:1.65}
+.tmt-data-box{background:#0A1628;color:#e0f0ff;border-radius:8px;padding:1.25rem 1.5rem;margin:1.75rem 0}
+.tmt-data-box h3{font-size:.95rem;font-weight:700;color:#ff9999;margin:0 0 .75rem;text-transform:uppercase}
+.tmt-data-box ul{margin:0;padding:0;list-style:none}
+.tmt-data-box ul li{border-bottom:1px solid rgba(255,255,255,.08);padding:.45rem 0;font-size:.93rem}
+.tmt-data-box ul li strong{color:#ff9999}
+.tmt-verdict{background:#fff5f5;border:1px solid #ffb3b3;border-radius:8px;padding:1.25rem 1.5rem;font-weight:500;line-height:1.7}
+.tmt-sources{font-size:.82rem;color:#888;border-top:1px solid #eee;padding-top:.75rem;margin-top:2rem}
+.tmt-sources a{color:#CC0000;text-decoration:none;margin:0 4px}
+.tmt-breaking-badge{background:#CC0000;color:#fff;display:inline-block;padding:4px 12px;border-radius:4px;font-size:12px;font-weight:700;margin-bottom:1rem}
+.tmt-launch-badge{background:#0A1628;color:#fff;display:inline-block;padding:4px 12px;border-radius:4px;font-size:12px;font-weight:700;margin-bottom:1rem}
+.tmt-trending-badge{background:#FF6B00;color:#fff;display:inline-block;padding:4px 12px;border-radius:4px;font-size:12px;font-weight:700;margin-bottom:1rem}
+.tmt-exclusive-badge{background:#6B21A8;color:#fff;display:inline-block;padding:4px 12px;border-radius:4px;font-size:12px;font-weight:700;margin-bottom:1rem}
+.entry-content h2{font-size:1.35rem;font-weight:700;margin:2rem 0 .75rem;padding-bottom:.4rem;border-bottom:2px solid #f0f0f0}
+.entry-content a[href*="themobiletimes.com"]{color:#CC0000;font-weight:500}

@@ -1,0 +1,60 @@
+name: Post Manual Story
+
+on:
+  workflow_dispatch:
+    inputs:
+      story:
+        description: 'Describe the news story (e.g. "Airtel hikes prepaid plans by 20%")'
+        required: false
+        type: string
+      url:
+        description: 'Paste a source article URL to rewrite (optional)'
+        required: false
+        type: string
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: Automation/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r Automation/requirements.txt
+
+      - name: Post manual story
+        working-directory: Automation
+        env:
+          WP_URL:               ${{ secrets.WP_URL }}
+          WP_USER:              ${{ secrets.WP_USER }}
+          WP_APP_PASS:          ${{ secrets.WP_APP_PASS }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          PEXELS_API_KEY:       ${{ secrets.PEXELS_API_KEY }}
+          FAL_API_KEY:          ${{ secrets.FAL_API_KEY }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL:     ${{ secrets.TELEGRAM_CHANNEL }}
+          TWITTER_API_KEY:      ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET:   ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_SECRET:${{ secrets.TWITTER_ACCESS_SECRET }}
+          LINKEDIN_ACCESS_TOKEN:${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_ORG_ID:      ${{ secrets.LINKEDIN_ORG_ID }}
+          INDEXNOW_KEY:         ${{ secrets.INDEXNOW_KEY }}
+          LOGO_PATH:            assets/Circle_Logo.png
+        run: |
+          if [ -n "${{ github.event.inputs.url }}" ]; then
+            python mobiletimes_agent.py --url "${{ github.event.inputs.url }}"
+          elif [ -n "${{ github.event.inputs.story }}" ]; then
+            python mobiletimes_agent.py --single "${{ github.event.inputs.story }}"
+          else
+            echo "Error: provide either a story description or a URL"
+            exit 1
+          fi

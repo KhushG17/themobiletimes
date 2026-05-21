@@ -1,0 +1,94 @@
+name: Daily Posts
+
+on:
+  schedule:
+    - cron: '30 2 * * *'    # Slot 1 — 08:00 IST — Policy / Market / Exclusive
+    - cron: '30 4 * * *'    # Slot 2 — 10:00 IST — Technology
+    - cron: '30 6 * * *'    # Slot 3 — 12:00 IST — Devices & Hardware
+    - cron: '30 9 * * *'    # Slot 4 — 15:00 IST — Industry Trends
+    - cron: '30 12 * * *'   # Slot 5 — 18:00 IST — Blog / Insights
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: 'Slot to run (1–5). Leave blank to run all 5 at once.'
+        required: false
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # needed to commit seen_urls.json back
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: Automation/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r Automation/requirements.txt
+
+      - name: Determine slot number
+        id: slot
+        run: |
+          if [ -n "${{ github.event.inputs.slot }}" ]; then
+            echo "num=${{ github.event.inputs.slot }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "30 2 * * *" ]; then
+            echo "num=1" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "30 4 * * *" ]; then
+            echo "num=2" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "30 6 * * *" ]; then
+            echo "num=3" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "30 9 * * *" ]; then
+            echo "num=4" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "30 12 * * *" ]; then
+            echo "num=5" >> $GITHUB_OUTPUT
+          else
+            echo "num=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run post
+        working-directory: Automation
+        env:
+          WP_URL:               ${{ secrets.WP_URL }}
+          WP_USER:              ${{ secrets.WP_USER }}
+          WP_APP_PASS:          ${{ secrets.WP_APP_PASS }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          PEXELS_API_KEY:       ${{ secrets.PEXELS_API_KEY }}
+          FAL_API_KEY:          ${{ secrets.FAL_API_KEY }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL:     ${{ secrets.TELEGRAM_CHANNEL }}
+          TWITTER_API_KEY:      ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET:   ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_SECRET:${{ secrets.TWITTER_ACCESS_SECRET }}
+          LINKEDIN_ACCESS_TOKEN:${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_ORG_ID:      ${{ secrets.LINKEDIN_ORG_ID }}
+          META_ACCESS_TOKEN:    ${{ secrets.META_ACCESS_TOKEN }}
+          META_PAGE_ID:         ${{ secrets.META_PAGE_ID }}
+          INDEXNOW_KEY:         ${{ secrets.INDEXNOW_KEY }}
+          GSC_PROPERTY:         ${{ secrets.GSC_PROPERTY }}
+          LOGO_PATH:            assets/Circle_Logo.png
+        run: |
+          if [ -n "${{ steps.slot.outputs.num }}" ]; then
+            python mobiletimes_agent.py --slot ${{ steps.slot.outputs.num }}
+          else
+            python mobiletimes_agent.py --run-now
+          fi
+
+      - name: Commit seen URLs (deduplication history)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Automation/seen_urls.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "chore: update seen story URLs [skip ci]"
+          git pull --rebase origin main 2>/dev/null || true
+          git push origin main 2>/dev/null || true
