@@ -41,6 +41,13 @@ Thumbs.db
 *.swo
 *~
 
+# ─── Claude Code (local tooling, never commit) ────────────────────────────────
+.claude/
+
+# ─── Large local folders (not needed in repo) ────────────────────────────────
+daily-bulletin-magazine-newspaper-theme-*/
+Logo/
+
 # ─── Keep these tracked ───────────────────────────────────────────────────────
 # seen_urls.json  ← tracked (dedup history between GitHub Actions runs)
 # breaking_seen.json  ← tracked (breaking news dedup history)
