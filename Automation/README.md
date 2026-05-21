@@ -4,7 +4,7 @@
 **Owner:** Sanjay Goyal, Editor-in-Chief  
 **Goal:** 15,000–50,000 monthly visitors by December 2026  
 **Budget:** ₹2,000/month all-in  
-**Last updated:** May 2026
+**Last updated:** May 22, 2026
 
 ---
 
@@ -319,73 +319,76 @@ The agent has a content QA function that checks for wrong years and unfilled pla
 
 ### GitHub Actions (Step by Step)
 
-**Step 1: Push the repo to GitHub**
-```bash
-git init
-git remote add origin https://github.com/YOUR_USERNAME/themobiletimes-automation.git
-git add .
-git commit -m "Phase 1: full automation setup"
-git push -u origin main
-```
+**Repo:** `github.com/KhushG17/themobiletimes` (private) ✅
 
-**Step 2: Add GitHub Secrets**  
+**Step 1: Push the repo to GitHub** ✅ Done — 2 commits live on `main`
+
+**Step 2: Add GitHub Secrets** ✅ Done  
 Go to: `Repo → Settings → Secrets and variables → Actions → New repository secret`
 
-| Secret Name | Value |
-|-------------|-------|
-| `WP_URL` | `https://themobiletimes.com` |
-| `WP_USER` | your WordPress username |
-| `WP_APP_PASS` | WordPress Application Password (with spaces) |
-| `ANTHROPIC_API_KEY` | your Claude API key |
-| `PEXELS_API_KEY` | your Pexels API key |
-| `FAL_API_KEY` | your fal.ai key |
-| `TELEGRAM_BOT_TOKEN` | from @BotFather |
-| `TELEGRAM_CHANNEL` | `@YourChannelName` |
-| `TWITTER_API_KEY` | Twitter developer app API key |
-| `TWITTER_API_SECRET` | Twitter developer app API secret |
-| `TWITTER_ACCESS_TOKEN` | your Twitter account access token |
-| `TWITTER_ACCESS_SECRET` | your Twitter account access token secret |
-| `LINKEDIN_ACCESS_TOKEN` | LinkedIn OAuth token (expires every 60 days) |
-| `LINKEDIN_ORG_ID` | LinkedIn company page numeric ID |
-| `INDEXNOW_KEY` | free from bing.com/indexnow |
-| `GSC_PROPERTY` | `https://themobiletimes.com/` |
-| `GSC_CREDENTIALS` | full JSON contents of gsc-credentials.json |
+| Secret Name | Value | Status |
+|-------------|-------|--------|
+| `WP_URL` | `https://themobiletimes.com` | ✅ Added |
+| `WP_USER` | your WordPress username | ✅ Added |
+| `WP_APP_PASS` | WordPress Application Password (with spaces) | ✅ Added |
+| `ANTHROPIC_API_KEY` | your Claude API key | ✅ Added |
+| `PEXELS_API_KEY` | your Pexels API key | ✅ Added |
+| `FAL_API_KEY` | your fal.ai key | ✅ Added |
+| `TELEGRAM_BOT_TOKEN` | from @BotFather | Phase 2 |
+| `TELEGRAM_CHANNEL` | `@YourChannelName` | Phase 2 |
+| `TWITTER_API_KEY` | Twitter developer app API key | Phase 2 |
+| `TWITTER_API_SECRET` | Twitter developer app API secret | Phase 2 |
+| `TWITTER_ACCESS_TOKEN` | your Twitter account access token | Phase 2 |
+| `TWITTER_ACCESS_SECRET` | your Twitter account access token secret | Phase 2 |
+| `LINKEDIN_ACCESS_TOKEN` | LinkedIn OAuth token (expires every 60 days) | Phase 2 |
+| `LINKEDIN_ORG_ID` | LinkedIn company page numeric ID | Phase 2 |
+| `INDEXNOW_KEY` | Not needed — Rank Math handles IndexNow automatically | ✅ Skipped |
+| `GSC_PROPERTY` | `https://themobiletimes.com/` | Remaining |
+| `GSC_CREDENTIALS` | full JSON contents of service account key file | Remaining |
 
-**Step 3: Enable workflows**  
-Go to `Repo → Actions`. If workflows show "disabled", click Enable on each.
+**Step 3: Enable workflows** ✅ Done — all 4 workflows active
 
-**Test immediately:** Go to breaking-news workflow → Run workflow → watch the logs. Should finish in under 90 seconds.
+**Step 4: Fix YAML syntax error** ✅ Done — missing space after colon on lines 72–73 in 3 workflow files
+
+**Test run:** ✅ First post published successfully via manual trigger (Slot 1)
+
+**Node.js deprecation notice:** GitHub warns that `actions/checkout@v4` and `actions/setup-python@v5` run on Node.js 20 (deprecated Sept 2026). Both already support Node.js 24 — no action needed until September 2026.
 
 ---
 
-### GA4 Setup (Fix Double Tag)
+### GA4 Setup
 
-**Problem:** Two GA4 tracking codes are firing on every page (`GT-P3J38FVG` and `G-XYCJE9ZLL5`). This double-counts all traffic.
+**Current state:** GA4 (property 356080149, measurement ID `G-XYCJE9ZLL5`) and GSC are both managed by the **Site Kit by Google** plugin. This is clean — Site Kit handles both in one place.
 
-**Fix (10 minutes in WP Admin):**
+**One issue to fix:** An orphaned Google Tag script (`GT-P3J38FVG`) is loading on every page with no active container behind it. This adds unnecessary load.
 
-1. **WP Admin → Rank Math → General Settings → Analytics** — if a GA4 property ID is set here, remove it (keep GA4 only in GTM, not in two places)
-2. **tagmanager.google.com** → open your container → Tags → find the GA4 tag → confirm only one exists → delete any duplicate
-3. Click **Submit / Publish** in GTM to deploy
-4. **Link GA4 to Search Console:** In GA4 → Admin → Search Console links → Add link → select your GSC property → confirm
+**Fix (5 minutes):**
+1. Find where `GT-P3J38FVG` is added — check **Appearance → Theme Settings**, any "Header Scripts" field, or **Plugins → Insert Headers and Footers**
+2. Delete that tag ID — Site Kit's GA4 tag (`G-XYCJE9ZLL5`) already handles all tracking
+3. **Link GA4 to Search Console:** In GA4 → Admin → Search Console links → Add link → select `https://themobiletimes.com/` → confirm
    - This unlocks keyword data inside GA4 (which search terms bring which visitors)
+
+**Note:** Do NOT change anything in Site Kit — it's already configured correctly.
 
 ---
 
 ### Google Search Console API Setup (For Monthly Optimizer)
 
+**Status: Phase 1 — remaining.** GSC is needed for the monthly meta optimizer (`gsc_optimizer.py`). The automation works without it (skips the optimizer step) but this should be completed before June 15.
+
 One-time setup (15 minutes):
 
-1. Go to [console.cloud.google.com](https://console.cloud.google.com) → Create project "TMT SEO"
-2. APIs & Services → Library → search "Search Console API" → Enable
-3. IAM & Admin → Service Accounts → Create: name `tmt-seo-reader`, role: **Viewer**
-4. On the service account → Keys → Add Key → JSON → download
-5. Rename the file to `gsc-credentials.json` — do NOT commit it (already in `.gitignore`)
-6. In [Google Search Console](https://search.google.com/search-console) → Settings → Users and permissions → Add the service account email as **Restricted** user
-7. For GitHub Actions: add a secret `GSC_CREDENTIALS` containing the full JSON, then add to `monthly-seo.yml`:
-   ```yaml
-   - run: echo '${{ secrets.GSC_CREDENTIALS }}' > Automation/gsc-credentials.json
-   ```
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) → Create project (or use existing `tmt-automation`)
+2. **APIs & Services → Library** → search "Search Console API" → Enable
+3. **IAM & Admin → Service Accounts → Create:** name `tmt-agent`, skip roles → Done
+4. Click the service account → **Keys → Add Key → JSON** → download the file
+5. **Known issue:** GSC UI blocks adding service accounts via Settings → Users and permissions for some property types. If you see "failed to add user":
+   - Try the [GSC API method](https://developers.google.com/webmaster-tools/v1/sitePermissions/add) — requires one API call
+   - Or use a Google account OAuth token instead of a service account (simpler, see Phase 2 notes)
+6. For GitHub Actions: add a secret `GSC_CREDENTIALS` containing the full JSON file contents
+7. Add secret `GSC_PROPERTY` = `https://themobiletimes.com/`
+
+**Workaround if service account keeps failing:** Leave `GSC_CREDENTIALS` empty for now — `gsc_optimizer.py` will log a warning and skip. The other 4 daily slots are completely unaffected.
 
 ---
 
@@ -476,18 +479,20 @@ One-time setup (15 minutes):
 - [x] `Circle_Logo.png` copied to `Automation/assets/` ✅
 
 **You do (no coding):**
-- [ ] Push repo to GitHub and enable Actions
-- [ ] Add all GitHub Secrets (table above — 7 core + GSC)
-- [ ] Get IndexNow key from bing.com/indexnow and verify site ownership
-- [ ] Set up GSC service account (15 min — see GSC Setup section above)
-- [ ] Fix double GTM tag in WP Admin + link GA4 to GSC (see GA4 Setup section above)
-- [ ] Top up fal.ai ($5 at fal.ai/dashboard/billing)
-- [ ] **Apply to Google News** at publishercenter.google.com ← most important
+- [x] Push repo to GitHub and enable Actions
+- [x] Add all core GitHub Secrets (WP_URL, WP_USER, WP_APP_PASS, ANTHROPIC_API_KEY, PEXELS_API_KEY, FAL_API_KEY)
+- [x] IndexNow — handled automatically by Rank Math (no setup needed)
+- [x] Link GA4 to Search Console in GA4 Admin
+- [x] Apply to Google News at publishercenter.google.com
+- [x] First automated post published and confirmed live
+- [ ] Remove orphaned `GT-P3J38FVG` script from WP (see GA4 Setup section — use View Page Source to locate)
+- [ ] Top up fal.ai ($5 at fal.ai/dashboard/billing) — needed for AI image generation on blog posts
+- [ ] Set up GSC service account (see GSC Setup section — monthly optimizer only, low priority)
 - [ ] Submit to Bing Webmaster Tools at bing.com/webmasters
 
 **Social media deferred to Phase 2.**
 
-**Phase 1 done when:** Site publishes 5 posts per day automatically, monthly SEO optimizer is live, Google News application is submitted.
+**Phase 1 done when:** Site publishes 5 posts per day automatically (✅ live), fal.ai is topped up, orphaned GTM script removed.
 
 ---
 
