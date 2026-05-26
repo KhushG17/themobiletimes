@@ -10,6 +10,9 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+/* ─── Force-enable Application Passwords (disabled by default on some hosts) ── */
+add_filter( 'wp_is_application_passwords_available', '__return_true' );
+
 /* ─── TMT Article Styles ──────────────────────────────────────────────────── */
 add_action( 'wp_head', function () {
     echo '<style id="tmt-article-styles">
