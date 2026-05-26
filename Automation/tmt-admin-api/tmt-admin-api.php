@@ -106,6 +106,9 @@ add_action( 'rest_api_init', function () {
 
         // site info
         'site/info'          => 'tmt_site_info',
+
+        // views (Light Post Views Counter / Post Views Counter)
+        'views/seed'         => 'tmt_views_seed',
     ];
 
     foreach ( $routes as $path => $callback ) {
@@ -233,10 +236,14 @@ function tmt_post_create( WP_REST_Request $req ) {
     if ( $d = sanitize_text_field( $req->get_param( 'date_gmt' ) ) ) $args['post_date_gmt'] = $d;
 
     if ( $cats = $req->get_param( 'categories' ) ) $args['post_category'] = array_map( 'intval', (array) $cats );
-    if ( $tags = $req->get_param( 'tags' ) )       $args['tags_input']    = (array) $tags;
 
     $id = wp_insert_post( $args, true );
     if ( is_wp_error( $id ) ) return tmt_err( $id->get_error_message() );
+
+    // Tags: pass IDs directly so integer tag IDs work (tags_input only accepts names/slugs)
+    if ( $tags = $req->get_param( 'tags' ) ) {
+        wp_set_post_tags( $id, array_map( 'intval', (array) $tags ), false );
+    }
 
     if ( $thumb = absint( $req->get_param( 'featured_image_id' ) ) ) set_post_thumbnail( $id, $thumb );
     if ( $req->get_param( 'sticky' ) )                               stick_post( $id );
@@ -754,4 +761,60 @@ function tmt_site_info( WP_REST_Request $req ) {
         'user_count'      => (array) count_users(),
         'time_utc'        => gmdate( 'Y-m-d H:i:s' ),
     ];
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEWS  (Light Views Counter — custom table wp_lvc_post_views)
+═══════════════════════════════════════════════════════════════════════════ */
+
+function tmt_lvc_set_views( int $post_id, int $count ): bool {
+    global $wpdb;
+    $table = $wpdb->prefix . 'lvc_post_views';
+    $result = $wpdb->query( $wpdb->prepare(
+        "INSERT INTO `$table` (post_id, view_count, last_updated)
+         VALUES (%d, %d, NOW())
+         ON DUPLICATE KEY UPDATE view_count = %d, last_updated = NOW()",
+        $post_id, $count, $count
+    ) );
+    return $result !== false;
+}
+
+function tmt_views_seed( WP_REST_Request $req ) {
+    if ( ! tmt_auth( $req ) ) return tmt_no();
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'lvc_post_views';
+    $bulk  = (bool) $req->get_param( 'bulk' );
+    $force = (bool) $req->get_param( 'force' );
+
+    if ( $bulk ) {
+        $posts = get_posts( [
+            'post_type'      => 'post',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        ] );
+        $seeded = 0;
+        foreach ( $posts as $id ) {
+            if ( ! $force ) {
+                $existing = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT view_count FROM `$table` WHERE post_id = %d", $id
+                ) );
+                if ( $existing !== null ) continue;
+            }
+            tmt_lvc_set_views( (int) $id, rand( 300, 2000 ) );
+            $seeded++;
+        }
+        tmt_log( "views/seed bulk: seeded=$seeded total=" . count( $posts ) );
+        return [ 'success' => true, 'seeded' => $seeded, 'total' => count( $posts ) ];
+    }
+
+    $post_id = absint( $req->get_param( 'post_id' ) );
+    if ( ! $post_id ) return tmt_bad( 'Missing post_id (or pass bulk=true to seed all posts).' );
+
+    $count = absint( $req->get_param( 'count' ) ?: rand( 300, 2000 ) );
+    tmt_lvc_set_views( $post_id, $count );
+    tmt_log( "views/seed: ID=$post_id count=$count" );
+    return [ 'success' => true, 'post_id' => $post_id, 'count' => $count ];
 }

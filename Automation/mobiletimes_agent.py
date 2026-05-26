@@ -1829,6 +1829,25 @@ def publish_post(post_data: dict, featured_media_id: int | None,
     log.error(f"Publish failed ({r.status_code}): {r.text[:200]}")
     return None
 
+def seed_post_views(post_id: int):
+    """Seed a random view count (300–2000) on a newly published post via tmt-admin-api."""
+    if not post_id:
+        return
+    try:
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/views/seed",
+            json={"secret": TMT_SECRET, "post_id": post_id},
+            timeout=10,
+        )
+        if r.ok:
+            data = r.json()
+            log.info(f"  Views seeded: {data.get('count')} (meta: {data.get('meta_key')})")
+        else:
+            log.warning(f"  Views seed responded {r.status_code}")
+    except Exception as e:
+        log.warning(f"Views seed failed: {e}")
+
+
 def ping_indexing(post_url: str):
     try:
         if INDEXNOW_KEY:
@@ -1915,6 +1934,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
                 post_url = result.get("url", result.get("link", ""))
                 log.info(f"  Slot 5 published: {post_url}")
                 ping_indexing(post_url)
+                seed_post_views(result.get("id"))
                 save_seen_urls(set())
                 try:
                     from social_poster import post_to_all
@@ -2001,6 +2021,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             post_url = result.get("url", result.get("link", ""))
             log.info(f"  Slot {slot} published: {post_url}")
             ping_indexing(post_url)
+            seed_post_views(result.get("id"))
             save_seen_urls({story.get("url")} - {"", WP_URL, None})
             try:
                 from social_poster import post_to_all
@@ -2104,6 +2125,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             scheduled = result.get("status") == "future"
             log.info(f"  {'Scheduled' if scheduled else 'Published'} [{POST_TIMES_IST[i]} IST]: {post_url}")
             ping_indexing(post_url)
+            seed_post_views(result.get("id"))
             published.append({
                 "type":     post_type,
                 "title":    post_data["title"],
@@ -2165,6 +2187,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         scheduled = blog_result.get("status") == "future"
         log.info(f"  Blog {'scheduled' if scheduled else 'published'} [{POST_TIMES_IST[4]} IST]: {blog_url}")
         ping_indexing(blog_url)
+        seed_post_views(blog_result.get("id"))
         published.append({
             "type":     "blog",
             "title":    blog_data["title"],
@@ -2257,6 +2280,7 @@ if __name__ == "__main__":
             post_url = result.get("url", result.get("link", ""))
             log.info(f"  Published: {post_url}")
             ping_indexing(post_url)
+            seed_post_views(result.get("id"))
             try:
                 from social_poster import post_to_all
                 post_to_all(post_data["title"], post_url, post_data["tags"], category=post_data["category_slug"])
