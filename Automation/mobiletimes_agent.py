@@ -74,20 +74,33 @@ _seen_urls: set = set()               # populated once per run_daily(); URL-leve
 
 
 def load_seen_urls() -> set:
-    """Load previously processed story URLs from disk."""
-    if SEEN_URLS_FILE.exists():
-        try:
-            return set(json.loads(SEEN_URLS_FILE.read_text(encoding="utf-8")).get("urls", []))
-        except Exception:
-            pass
+    """Load previously processed story URLs from WordPress state (tmt-admin-api)."""
+    try:
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/state/get",
+            json={"secret": TMT_SECRET, "name": "seen_urls"},
+            timeout=10,
+        )
+        if r.ok:
+            data = r.json().get("value") or {}
+            return set(data.get("urls", []))
+    except Exception as e:
+        log.warning(f"load_seen_urls failed: {e}")
     return set()
 
 
 def save_seen_urls(new_urls: set):
-    """Append new story URLs to the seen list, keeping last 2,000."""
+    """Append new story URLs to WP state, keeping last 2,000."""
     existing = load_seen_urls()
     merged   = list(existing | new_urls)[-2000:]
-    SEEN_URLS_FILE.write_text(json.dumps({"urls": merged}, indent=2), encoding="utf-8")
+    try:
+        requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/state/set",
+            json={"secret": TMT_SECRET, "name": "seen_urls", "value": {"urls": merged}},
+            timeout=10,
+        )
+    except Exception as e:
+        log.warning(f"save_seen_urls failed: {e}")
 
 
 def load_pexels_ids() -> set:

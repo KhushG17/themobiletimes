@@ -145,15 +145,31 @@ AUTHORITY_LINKS = [
 # ─── Seen-story deduplication ─────────────────────────────────────────────────
 
 def _load_seen() -> dict:
-    if SEEN_FILE.exists():
-        try:
-            return json.loads(SEEN_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+    """Load breaking news seen state from WordPress (persists across ephemeral runners)."""
+    try:
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/state/get",
+            json={"secret": TMT_SECRET, "name": "breaking_seen"},
+            timeout=10,
+        )
+        if r.ok:
+            data = r.json().get("value")
+            if data:
+                return data
+    except Exception:
+        pass
     return {"published": [], "daily": {}}
 
 def _save_seen(data: dict):
-    SEEN_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    """Persist breaking news seen state to WordPress."""
+    try:
+        requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/state/set",
+            json={"secret": TMT_SECRET, "name": "breaking_seen", "value": data},
+            timeout=10,
+        )
+    except Exception:
+        pass
 
 def _story_hash(title: str) -> str:
     return hashlib.md5(title.encode()).hexdigest()

@@ -109,6 +109,10 @@ add_action( 'rest_api_init', function () {
 
         // views (Light Post Views Counter / Post Views Counter)
         'views/seed'         => 'tmt_views_seed',
+
+        // persistent state storage (replaces file commits in GitHub Actions)
+        'state/get'          => 'tmt_state_get',
+        'state/set'          => 'tmt_state_set',
     ];
 
     foreach ( $routes as $path => $callback ) {
@@ -827,4 +831,35 @@ function tmt_views_seed( WP_REST_Request $req ) {
     tmt_lvc_set_views( $post_id, $count );
     tmt_log( "views/seed: ID=$post_id count=$count" );
     return [ 'success' => true, 'post_id' => $post_id, 'count' => $count ];
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATE  (persistent key-value store replacing file commits in GitHub Actions)
+   Stores JSON blobs as WordPress options with prefix tmt_state_
+═══════════════════════════════════════════════════════════════════════════ */
+
+function tmt_state_get( WP_REST_Request $req ) {
+    if ( ! tmt_auth( $req ) ) return tmt_no();
+
+    $name = sanitize_key( $req->get_param( 'name' ) );
+    if ( ! $name ) return tmt_bad( 'Missing name.' );
+
+    $raw   = get_option( 'tmt_state_' . $name, null );
+    $value = ( $raw !== null ) ? json_decode( $raw, true ) : null;
+
+    return [ 'success' => true, 'name' => $name, 'value' => $value ];
+}
+
+function tmt_state_set( WP_REST_Request $req ) {
+    if ( ! tmt_auth( $req ) ) return tmt_no();
+
+    $name  = sanitize_key( $req->get_param( 'name' ) );
+    $value = $req->get_param( 'value' );
+    if ( ! $name )          return tmt_bad( 'Missing name.' );
+    if ( $value === null )  return tmt_bad( 'Missing value.' );
+
+    update_option( 'tmt_state_' . $name, wp_json_encode( $value ), false );
+    tmt_log( "state/set: $name" );
+    return [ 'success' => true, 'name' => $name ];
 }
