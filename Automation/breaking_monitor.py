@@ -457,17 +457,10 @@ def fetch_newsapi_stories() -> list[dict]:
 
 
 def fetch_all_breaking_stories() -> list[dict]:
-    """Combine News API (preferred) + RSS feeds, deduplicated."""
-    api_stories = fetch_newsapi_stories()
-    rss_stories = poll_rss()
-    seen_titles  = {s["title"] for s in api_stories}
-    combined = list(api_stories)
-    for s in rss_stories:
-        if s["title"] not in seen_titles:
-            combined.append(s)
-            seen_titles.add(s["title"])
-    log.info(f"Total breaking candidates: {len(combined)}")
-    return combined
+    """RSS-only breaking story feed. News API removed to preserve daily quota for slots."""
+    stories = poll_rss()
+    log.info(f"Total breaking candidates: {len(stories)}")
+    return stories
 
 
 # ─── Story Scoring ────────────────────────────────────────────────────────────

@@ -208,6 +208,11 @@ RSS_FEEDS = [
     # ── Devices & consumer ────────────────────────────────────────────────────
     "https://www.gsmarena.com/rss-news-articles.php3",
     "https://www.notebookcheck.net/News.40.0.html?id=&txt=&mark=0&archive=0&type=0&typemax=255&or=0&perpage=50&rss=1",
+    # ── Google News India (trending-sorted) ───────────────────────────────────
+    "https://news.google.com/rss/search?q=telecom+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=5G+smartphone+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=jio+airtel+technology&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=cybersecurity+ai+india&hl=en-IN&gl=IN&ceid=IN:en",
 ]
 
 # Queries for News API (newsapi.org) — India-telecom focused
@@ -217,12 +222,6 @@ NEWS_API_QUERIES = [
     "TRAI India regulation spectrum",
     "smartphone launch India 2026",
     "cybersecurity India tech",
-]
-
-TRENDING_SEEDS = [
-    "5G India", "Jio Airtel", "TRAI regulation", "telecom policy India",
-    "smartphone launch India", "cybersecurity India", "AI telecom",
-    "OTT streaming India", "BSNL", "satellite internet India",
 ]
 
 INTERNAL_LINKS = {
@@ -610,17 +609,16 @@ def get_published_titles(limit: int = 100) -> set[str]:
         return set()
 
 
-def is_duplicate(story_title: str, published: set[str], threshold: float = 0.45) -> bool:
-    """Return True if story is too similar to a recently published post.
+def is_duplicate(story_title: str, published: set[str], threshold: float = 0.55) -> bool:
+    """Return True if story title has high word-overlap with a recently published post.
 
-    Uses two checks:
-    1. Word overlap on all words 3+ chars (catches product names like X9, 5G)
-    2. Key entity match — if 2+ proper nouns/brands appear in both titles
+    Threshold raised to 0.55 to avoid false positives on generic words.
+    Semantic duplicate detection is handled separately by batch_semantic_dedup().
     """
     title = story_title.lower().strip()
-    # All meaningful words (3+ chars, not stopwords)
     STOPWORDS = {"the", "and", "for", "with", "from", "that", "this", "are",
-                 "was", "has", "its", "have", "will", "india", "2026", "2025"}
+                 "was", "has", "its", "have", "will", "india", "2026", "2025",
+                 "new", "how", "why", "who", "what", "now", "first", "last"}
     words = set(re.findall(r"\b\w{3,}\b", title)) - STOPWORDS
     if not words:
         return False
@@ -629,26 +627,65 @@ def is_duplicate(story_title: str, published: set[str], threshold: float = 0.45)
         pub_words = set(re.findall(r"\b\w{3,}\b", pub)) - STOPWORDS
         if not pub_words:
             continue
-
-        # Check 1: general word overlap
         overlap = len(words & pub_words) / max(len(words), 1)
         if overlap >= threshold:
             log.info(f"  Skipping duplicate: '{story_title[:60]}' ({overlap:.0%} overlap)")
             return True
 
-        # Check 2: key entity overlap — if 2+ significant shared terms
-        # (catches "GitHub breach" matching "GitHub cyberattack")
-        common = words & pub_words
-        if len(common) >= 2:
-            # Boost: if the shared words include a brand/product name (capitalised in original)
-            orig_words    = set(re.findall(r"\b[A-Z][a-zA-Z0-9]{2,}\b", story_title))
-            pub_orig_words = set(re.findall(r"\b[A-Z][a-zA-Z0-9]{2,}\b", pub.title()))
-            brand_overlap = {w.lower() for w in orig_words} & {w.lower() for w in pub_orig_words}
-            if len(brand_overlap) >= 1 and len(common) >= 2:
-                log.info(f"  Skipping duplicate: '{story_title[:60]}' (entity match: {brand_overlap})")
-                return True
-
     return False
+
+
+def batch_semantic_dedup(stories: list[dict], published: set[str]) -> list[dict]:
+    """Use Claude Haiku to remove stories covering the same event as recently published posts.
+
+    One API call per slot — costs ~₹8-10/month total.
+    """
+    if not stories or not published:
+        return stories
+
+    story_titles = [s["title"] for s in stories]
+    pub_list = list(published)[:60]  # cap to avoid token overflow
+
+    prompt = (
+        "You are a news deduplication assistant. I'll give you two lists:\n"
+        "A) Candidate story titles (numbered)\n"
+        "B) Recently published post titles\n\n"
+        "Task: For each candidate in list A, flag it if it covers the SAME SPECIFIC EVENT "
+        "as any title in list B — meaning the same company doing the same thing on the same topic. "
+        "Two stories about the same company doing DIFFERENT things are NOT duplicates. "
+        "Only flag if the core news event is essentially identical.\n\n"
+        "Output ONLY a JSON array of the numbers to EXCLUDE (e.g. [2,5,9]). "
+        "Empty array [] if none are duplicates. No explanation.\n\n"
+        "LIST A — Candidates:\n"
+    )
+    for i, t in enumerate(story_titles, 1):
+        prompt += f"{i}. {t}\n"
+    prompt += "\nLIST B — Recently published:\n"
+    for t in pub_list:
+        prompt += f"- {t}\n"
+
+    try:
+        import anthropic as _ant
+        _hc = _ant.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        resp = _hc.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = resp.content[0].text.strip()
+        m = re.search(r"\[.*?\]", text, re.DOTALL)
+        exclude = set(json.loads(m.group(0))) if m else set()
+        kept = []
+        for i, s in enumerate(stories, 1):
+            if i in exclude:
+                log.info(f"  Semantic dedup removed: '{s['title'][:60]}'")
+            else:
+                kept.append(s)
+        log.info(f"  Semantic dedup: {len(stories) - len(kept)} removed, {len(kept)} remain")
+        return kept
+    except Exception as e:
+        log.warning(f"Semantic dedup failed: {e} — skipping")
+        return stories
 
 
 def get_recent_posts(limit: int = 12) -> list[dict]:
@@ -830,19 +867,27 @@ def fetch_all_stories() -> list[dict]:
     log.info(f"Fetched {len(stories)} total stories (News API + RSS)")
     return stories
 
-def get_trending_keywords() -> list[str]:
-    try:
-        from pytrends.request import TrendReq
-        pytrends = TrendReq(hl="en-IN", tz=330)
-        keywords = random.sample(TRENDING_SEEDS, min(5, len(TRENDING_SEEDS)))
-        pytrends.build_payload(keywords, cat=0, timeframe="now 1-d", geo="IN")
-        data = pytrends.interest_over_time()
-        if not data.empty:
-            trending = data.mean().sort_values(ascending=False)
-            return list(trending.index[:3])
-    except Exception as e:
-        log.warning(f"pytrends failed: {e}")
-    return random.sample(TRENDING_SEEDS, 3)
+def get_trending_from_stories(stories: list[dict]) -> list[str]:
+    """Extract trending entities from the already-fetched story pool.
+
+    Counts capitalized words (brand/product names) across all headlines.
+    Returns entities appearing in 3+ headlines — a free, always-working signal.
+    """
+    from collections import Counter
+    SKIP = {"India", "The", "This", "That", "What", "New", "How", "Why",
+            "When", "Its", "For", "Are", "Has", "Was", "Get", "Top", "Big",
+            "Key", "Now", "All", "Can", "Says", "Here", "Into"}
+    entity_counts: Counter = Counter()
+    for s in stories:
+        words = re.findall(r"\b[A-Z][a-zA-Z0-9]{2,}\b", s["title"])
+        for w in words:
+            if w not in SKIP:
+                entity_counts[w] += 1
+    trending = [w for w, c in entity_counts.most_common(20) if c >= 3][:5]
+    if not trending:
+        trending = [w for w, _ in entity_counts.most_common(5)]
+    log.info(f"Trending from stories: {trending}")
+    return trending
 
 ALL_NEWS_CATEGORIES = ", ".join(k for k in CATEGORY_IDS if k not in ("exclusive",))
 
@@ -1882,16 +1927,17 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             return
 
         # Slots 1–4: news post
-        log.info(f"Slot {slot} — fetching trending keywords...")
-        trending = get_trending_keywords()
         log.info(f"Slot {slot} — fetching RSS stories...")
         stories = fetch_all_stories()
         if not stories:
             log.error(f"Slot {slot} — no stories fetched, aborting")
             return
+        trending = get_trending_from_stories(stories)
         published_titles = get_published_titles()
         stories = [s for s in stories if not is_duplicate(s["title"], published_titles)]
-        log.info(f"Slot {slot} — {len(stories)} stories after dedup")
+        log.info(f"Slot {slot} — {len(stories)} stories after word-overlap dedup")
+        stories = batch_semantic_dedup(stories, published_titles)
+        log.info(f"Slot {slot} — {len(stories)} stories after semantic dedup")
 
         if exclusive_tip and slot == 1:
             stories.insert(0, {
@@ -1969,20 +2015,19 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     # ── Batch mode (--run-now: all 5 posts at once) ───────────────────────────
     log.info(f"  {len(_recent_posts_cache)} recent posts loaded for related-link injection")
 
-    # Step 2: Trending keywords
-    log.info("Fetching trending keywords...")
-    trending = get_trending_keywords()
-    log.info(f"Trending: {trending}")
-
-    # Step 3: RSS stories + duplicate filter
+    # Step 2: RSS stories + duplicate filter
     log.info("Fetching RSS stories...")
     stories = fetch_all_stories()
     if not stories:
         log.error("No stories fetched — aborting run")
         return
+    trending = get_trending_from_stories(stories)
+    log.info(f"Trending: {trending}")
     published_titles = get_published_titles()
     stories = [s for s in stories if not is_duplicate(s["title"], published_titles)]
-    log.info(f"{len(stories)} stories after duplicate filter")
+    log.info(f"{len(stories)} stories after word-overlap dedup")
+    stories = batch_semantic_dedup(stories, published_titles)
+    log.info(f"{len(stories)} stories after semantic dedup")
 
     # If manual exclusive tip provided, add it as first story
     if exclusive_tip:
