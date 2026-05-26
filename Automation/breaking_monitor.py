@@ -32,7 +32,9 @@ WP_USER       = os.getenv("WP_USER")
 WP_PASS       = os.getenv("WP_APP_PASS")
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 PEXELS_KEY    = os.getenv("PEXELS_API_KEY")
-LOGO_PATH     = os.getenv("LOGO_PATH", r"e:\Projects\Clients\TMT\Logo\Circle Logo.png")
+NEWS_API_KEY  = os.getenv("NEWS_API_KEY", "133cb2222fb8400d8e28a10c892d22f8")
+TMT_SECRET    = os.getenv("TMT_SECRET", "TMT2026xK9mSEO")
+LOGO_PATH     = os.getenv("LOGO_PATH", "assets/Circle_Logo.png")
 INDEXNOW_KEY  = os.getenv("INDEXNOW_KEY", "")
 
 IST           = pytz.timezone("Asia/Kolkata")
@@ -43,7 +45,7 @@ CURRENT_YEAR  = str(datetime.now(IST).year)
 WRONG_YEARS   = ["2020", "2021", "2022", "2023", "2024", "2025"]
 AUTHOR_NAME   = "Sanjay Goyal"
 AUTHOR_URL    = "https://themobiletimes.com/author/sanjay/"
-BREAKING_WORD_TARGET = "380-440"
+BREAKING_WORD_TARGET = "600-750"
 
 anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
 
@@ -80,15 +82,55 @@ TAG_IDS = {
 }
 
 RSS_FEEDS = [
+    # India — Telecom & Tech
     "https://economictimes.indiatimes.com/tech/telecom/rssfeeds/13357270.cms",
     "https://telecomtalk.info/feed/",
     "https://www.medianama.com/feed/",
     "https://entrackr.com/feed/",
+    "https://www.business-standard.com/rss/technology-10.rss",
+    "https://www.livemint.com/rss/technology",
+    "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms",
+    "https://www.financialexpress.com/industry/technology/feed/",
+    "https://inc42.com/feed/",
+    "https://yourstory.com/feed",
+    # India — Gadgets & Devices
+    "https://feeds.feedburner.com/gadgets360-latest",
+    "https://www.91mobiles.com/hub/feed/",
+    "https://www.digit.in/rss/news",
+    # Global — Telecom
     "https://www.lightreading.com/rss.xml",
     "https://www.fiercetelecom.com/rss.xml",
-    "https://feeds.feedburner.com/gadgets360-latest",
+    "https://www.rcrwireless.com/feed",
+    "https://telecomramblings.com/feed/",
+    "https://www.capacitymedia.com/rss",
+    "https://www.totaltele.com/rss.ashx",
+    # Global — Tech & AI
     "https://venturebeat.com/category/ai/feed/",
     "https://techcrunch.com/feed/",
+    "https://www.wired.com/feed/rss",
+    "https://arstechnica.com/feed/",
+    "https://www.theverge.com/rss/index.xml",
+    # Cybersecurity
+    "https://feeds.feedburner.com/TheHackersNews",
+    "https://www.bleepingcomputer.com/feed/",
+    "https://krebsonsecurity.com/feed/",
+    # Semiconductors & Hardware
+    "https://www.eetimes.com/rss/",
+    "https://www.anandtech.com/rss/",
+    # Policy & Regulation
+    "https://www.telecompaper.com/rss/news",
+    "https://policywatch.in/feed/",
+    # OTT & Digital Media
+    "https://www.afaqs.com/rss/news.xml",
+    "https://www.exchange4media.com/rss/technology-news.xml",
+]
+
+NEWS_API_QUERIES = [
+    "5G India telecom Jio Airtel",
+    "TRAI DOT India broadband policy",
+    "India tech startup funding fintech",
+    "cybersecurity breach India",
+    "smartphone launch India 2026",
 ]
 
 AUTHORITY_LINKS = [
@@ -185,13 +227,13 @@ def get_cleaned_logo():
 def add_watermark(img: Image.Image) -> Image.Image:
     img = img.convert("RGBA")
     logo = get_cleaned_logo().copy()
-    logo_w = int(img.width * 0.14)
+    logo_w = int(img.width * 0.09)
     logo_h = int(logo.height * (logo_w / logo.width))
     logo = logo.resize((logo_w, logo_h), Image.LANCZOS)
     r, g, b, a = logo.split()
-    a = a.point(lambda p: int(p * 0.88))
+    a = a.point(lambda p: int(p * 0.80))
     logo = Image.merge("RGBA", (r, g, b, a))
-    pad = 22
+    pad = 18
     x = img.width  - logo_w - pad
     y = img.height - logo_h - pad
     img.paste(logo, (x, y), logo)
@@ -228,23 +270,26 @@ def fetch_pexels_image(keyword: str) -> bytes | None:
         log.warning(f"Pexels fetch failed: {e}")
         return None
 
-def extract_source_image(url: str) -> bytes | None:
-    if not url:
+def extract_source_image(url: str, direct_img_url: str = "") -> bytes | None:
+    """Download the OG image from a story.
+    If direct_img_url is provided (e.g. from News API), use it directly instead of scraping."""
+    if not url and not direct_img_url:
         return None
     try:
-        from bs4 import BeautifulSoup
         headers = {"User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0)"}
-        r = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
-        if not r.ok:
-            return None
-        soup = BeautifulSoup(r.text, "lxml")
-        img_url = None
-        for attr in [("property", "og:image"), ("name", "og:image"),
-                     ("name", "twitter:image"), ("property", "twitter:image")]:
-            tag = soup.find("meta", attrs={attr[0]: attr[1]})
-            if tag and tag.get("content", "").startswith("http"):
-                img_url = tag["content"]
-                break
+        img_url = direct_img_url
+        if not img_url:
+            from bs4 import BeautifulSoup
+            r = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+            if not r.ok:
+                return None
+            soup = BeautifulSoup(r.text, "lxml")
+            for attr in [("property", "og:image"), ("name", "og:image"),
+                         ("name", "twitter:image"), ("property", "twitter:image")]:
+                tag = soup.find("meta", attrs={attr[0]: attr[1]})
+                if tag and tag.get("content", "").startswith("http"):
+                    img_url = tag["content"]
+                    break
         if not img_url:
             return None
         img_r = requests.get(img_url, headers=headers, timeout=15)
@@ -255,6 +300,7 @@ def extract_source_image(url: str) -> bytes | None:
         img = add_watermark(img)
         buf = io.BytesIO()
         img.save(buf, "JPEG", quality=88)
+        log.info(f"  Source image from {'direct URL' if direct_img_url else url[:60]}")
         return buf.getvalue()
     except Exception as e:
         log.warning(f"Source image extraction failed: {e}")
@@ -266,7 +312,8 @@ def make_fallback_image(title: str) -> bytes:
     img.save(buf, "JPEG", quality=90)
     return buf.getvalue()
 
-def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str) -> int | None:
+def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
+                       img_title: str = "") -> int | None:
     try:
         upload_headers = {
             "Authorization": f"Basic {creds}",
@@ -279,7 +326,11 @@ def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str) -> int | None:
         requests.post(
             f"{WP_URL}/wp-json/wp/v2/media/{media_id}",
             headers=WP_HDR,
-            json={"alt_text": alt, "caption": "© The Mobile Times"},
+            json={
+                "alt_text": alt,
+                "title":    img_title or alt,
+                "caption":  "© The Mobile Times",
+            },
         )
         return media_id
     except Exception as e:
@@ -310,8 +361,65 @@ def poll_rss() -> list[dict]:
                                  "source": feed.feed.get("title", url)})
         except Exception as e:
             log.debug(f"RSS feed failed ({url}): {e}")
-    log.info(f"Poll: {len(stories)} new stories")
+    log.info(f"RSS poll: {len(stories)} new stories")
     return stories
+
+
+def fetch_newsapi_stories() -> list[dict]:
+    """Fetch high-priority breaking stories from News API (3 queries, ~15 req/day budget)."""
+    if not NEWS_API_KEY:
+        return []
+    results = []
+    seen_titles: set[str] = set()
+    queries = NEWS_API_QUERIES[:3]  # limit to 3 queries to preserve daily budget
+    for q in queries:
+        try:
+            r = requests.get(
+                "https://newsapi.org/v2/everything",
+                params={
+                    "q":        q,
+                    "sortBy":   "publishedAt",
+                    "pageSize": 5,
+                    "language": "en",
+                    "apiKey":   NEWS_API_KEY,
+                },
+                timeout=15,
+            )
+            if not r.ok:
+                log.warning(f"News API error ({r.status_code}) for query '{q}'")
+                continue
+            for art in r.json().get("articles", []):
+                title = (art.get("title") or "").strip()
+                if not title or "[Removed]" in title:
+                    continue
+                if title in seen_titles or already_seen(title) or already_published_on_wp(title):
+                    continue
+                seen_titles.add(title)
+                results.append({
+                    "title":     title,
+                    "summary":   (art.get("description") or "")[:600],
+                    "url":       art.get("url", ""),
+                    "source":    art.get("source", {}).get("name", "News API"),
+                    "_og_image": art.get("urlToImage", ""),
+                })
+        except Exception as e:
+            log.warning(f"News API fetch failed for '{q}': {e}")
+    log.info(f"News API: {len(results)} new stories")
+    return results
+
+
+def fetch_all_breaking_stories() -> list[dict]:
+    """Combine News API (preferred) + RSS feeds, deduplicated."""
+    api_stories = fetch_newsapi_stories()
+    rss_stories = poll_rss()
+    seen_titles  = {s["title"] for s in api_stories}
+    combined = list(api_stories)
+    for s in rss_stories:
+        if s["title"] not in seen_titles:
+            combined.append(s)
+            seen_titles.add(s["title"])
+    log.info(f"Total breaking candidates: {len(combined)}")
+    return combined
 
 
 # ─── Story Scoring ────────────────────────────────────────────────────────────
@@ -350,12 +458,17 @@ def validate_and_fix(content: str, title: str) -> tuple[str, str, list[str]]:
         if yr in title:
             title = title.replace(yr, CURRENT_YEAR)
             warnings.append(f"Fixed year {yr}→{CURRENT_YEAR} in title")
+
+    # Hard-stop: unfilled placeholders mean the template wasn't completed
     placeholders = re.findall(r"\[(?!a |/a)[^\]]{3,60}\]", content)
     if placeholders:
-        warnings.append(f"Unfilled placeholders: {placeholders[:3]}")
+        raise ValueError(f"Unfilled placeholders in breaking content: {placeholders[:3]}. Aborting.")
+
+    # Hard-stop: article too short
     word_count = len(re.findall(r"\b\w+\b", re.sub(r"<[^>]+>", " ", content)))
     if word_count < 350:
-        warnings.append(f"Article too short: {word_count} words")
+        raise ValueError(f"Breaking article too short: {word_count} words (min 350). Aborting.")
+
     if warnings:
         log.warning(f"  Breaking QA: {'; '.join(warnings)}")
     else:
@@ -394,6 +507,16 @@ Every <p> tag must be 60–90 words. Split any longer content.
 
 ━━ YEAR RULE ━━
 Every date reference must use 2026. Never use 2025 or any earlier year.
+
+━━ HUMANIZATION RULES (CRITICAL — AI DETECTION PREVENTION) ━━
+• Write like a real journalist. Specific facts, company names, and numbers — not vague claims.
+• BANNED PHRASES (AI tells — never use): "In today's fast-paced world", "In conclusion", "Furthermore", "It is worth noting", "delve into", "landscape", "game-changer", "revolutionize", "paradigm shift", "leverage", "cutting-edge", "seamlessly", "robust solution", "Additionally", "Moreover", "It is important to note", "It is crucial to", "plays a crucial role", "plays a key role", "When it comes to", "In terms of", "This ensures that", "This allows", "not only...but also", "In summary", "To summarize", "At the end of the day", "shed light on", "underscore", "holistic", "synergy", "ecosystem".
+• BANNED PUNCTUATION — never use em dashes (—) anywhere in the article or title. Rewrite as a new sentence instead.
+• BANNED SENTENCE STARTERS — never begin 3 consecutive sentences with the same word. Never start a sentence with "This" followed by a verb ("This means", "This shows", "This highlights").
+• No opinions or editorialising. Report facts only.
+• No passive voice openers. Subject first, then action.
+• Vary sentence length: mix short punchy sentences (8–12 words) with detailed ones (22–28 words).
+• Name specific companies, people, prices, and dates — never "industry observers" or "market players".
 
 ━━ META DESCRIPTION RULE ━━
 meta_description MUST contain the exact focus keyword verbatim. 120–155 characters.
@@ -443,7 +566,7 @@ meta_description MUST contain the exact focus keyword verbatim. 120–155 charac
 </div>
 
 ━━ NEW LINE AFTER HTML ━━
-META_JSON:{{"article_title":"[title]","slug":"[slug]-2026-india","focus_keyword":"[2-4 words]","meta_title":"[50-60 chars | The Mobile Times]","meta_description":"[120-155 chars MUST contain focus keyword]","og_title":"[60-70 chars]","og_description":"[180-200 chars]","category":"[one of: 5g-networks, industry-trends, ott-streaming, ev-smart-grids, internet-of-things, tech-innovation, policy-updates, market-trends]","faq":[{{"q":"[Q1]","a":"[A1]"}},{{"q":"[Q2]","a":"[A2]"}},{{"q":"[Q3]","a":"[A3]"}}]}}"""
+META_JSON:{{"article_title":"[title]","slug":"[slug]-2026","focus_keyword":"[2-4 words]","meta_title":"[50-60 chars | The Mobile Times]","meta_description":"[120-155 chars MUST contain focus keyword — NO em dashes]","og_title":"[60-70 chars]","og_description":"[180-200 chars]","category":"[one of: 5g-networks, industry-trends, ott-streaming, ev-smart-grids, internet-of-things, tech-innovation, policy-updates, market-trends]","faq":[{{"q":"[Q1]","a":"[A1]"}},{{"q":"[Q2]","a":"[A2]"}},{{"q":"[Q3]","a":"[A3]"}}]}}"""
 
     r = anthropic_client.messages.create(
         model="claude-sonnet-4-6",
@@ -479,14 +602,11 @@ META_JSON:{{"article_title":"[title]","slug":"[slug]-2026-india","focus_keyword"
     sources = random.sample(AUTHORITY_LINKS, min(2, len(AUTHORITY_LINKS)))
     link_parts = []
     for idx, (name, url) in enumerate(sources):
-        rel = 'rel="noopener"' if idx == 0 else 'rel="noopener nofollow"'
-        link_parts.append(f'<a href="{url}" target="_blank" {rel}>{name} ↗</a>')
+        link_parts.append(f'<a href="{url}" target="_blank" rel="noopener">{name} ↗</a>')
     source_html = ' | '.join(link_parts)
     old_src = '<p class="tmt-sources"><strong>Sources:</strong>'
     new_src = f'<p class="tmt-sources"><strong>Sources:</strong> {source_html}'
     html_content = html_content.replace(old_src, new_src, 1) if old_src in html_content else html_content + f'\n{new_src}</p>'
-
-    html_content = '<span class="tmt-breaking-badge">BREAKING NEWS</span>\n' + html_content
 
     slug     = meta.get("slug", re.sub(r"[^a-z0-9-]", "", kw.lower().replace(" ", "-")))
     meta_t   = meta.get("meta_title",   f"{title[:50]} | The Mobile Times")
@@ -497,39 +617,6 @@ META_JSON:{{"article_title":"[title]","slug":"[slug]-2026-india","focus_keyword"
 
     if kw.lower() not in meta_d.lower():
         meta_d = f"{kw}: {meta_d}"[:155]
-
-    schema = {
-        "@context": "https://schema.org",
-        "@type": "NewsArticle",
-        "headline": title[:110],
-        "description": meta_d,
-        "datePublished": date_str,
-        "dateModified":  date_str,
-        "author": {"@type": "Person", "name": AUTHOR_NAME, "url": AUTHOR_URL},
-        "publisher": {
-            "@type": "NewsMediaOrganization",
-            "name": "The Mobile Times",
-            "url": WP_URL,
-            "logo": {"@type": "ImageObject", "url": f"{WP_URL}/wp-content/uploads/circle-logo.png"}
-        },
-        "keywords": kw,
-        "articleSection": "Breaking News",
-        "inLanguage": "en-IN",
-    }
-    schemas = [schema]
-    faq_items = meta.get("faq", [])
-    if faq_items:
-        schemas.append({
-            "@context": "https://schema.org",
-            "@type": "FAQPage",
-            "mainEntity": [
-                {"@type": "Question", "name": f["q"],
-                 "acceptedAnswer": {"@type": "Answer", "text": f["a"]}}
-                for f in faq_items if "q" in f and "a" in f
-            ]
-        })
-    for s in schemas:
-        html_content += f'\n<script type="application/ld+json">{json.dumps(s)}</script>'
 
     slug = slug.replace("2025", CURRENT_YEAR).replace("2024", CURRENT_YEAR)
 
@@ -591,7 +678,7 @@ def publish_breaking_post(post_data: dict, media_id: int | None) -> dict | None:
         "slug":           post_data["slug"],
         "categories":     [cat_id],
         "tags":           tag_ids,
-        "sticky":         True,
+        "sticky":         False,
         "featured_media": media_id or 0,
     }
     r = requests.post(f"{WP_URL}/wp-json/wp/v2/posts", headers=WP_HDR, json=payload, timeout=30)
@@ -609,9 +696,18 @@ def ping_indexing(post_url: str):
                          params={"url": post_url, "key": INDEXNOW_KEY}, timeout=5)
         requests.get("https://www.google.com/ping",
                      params={"sitemap": f"{WP_URL}/sitemap.xml"}, timeout=5)
-        requests.post(f"{WP_URL}/wp-json/litespeed/v1/purge/all", headers=WP_HDR, timeout=10)
-    except Exception:
-        pass
+        # Flush LiteSpeed Cache via tmt-admin-api plugin
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/cache/flush",
+            json={"secret": TMT_SECRET},
+            timeout=10,
+        )
+        if r.ok:
+            log.info("  Cache flushed via tmt-admin-api")
+        else:
+            log.warning(f"  Cache flush responded {r.status_code}")
+    except Exception as e:
+        log.warning(f"Ping failed: {e}")
 
 
 # ─── Main Scan Loop ───────────────────────────────────────────────────────────
@@ -625,7 +721,7 @@ def run_scan():
         log.info(f"Daily cap reached ({count_today}/{MAX_BREAKING_PER_DAY}) — skipping scan")
         return
 
-    stories = poll_rss()
+    stories = fetch_all_breaking_stories()
     if not stories:
         log.info("No new stories found")
         return
@@ -648,13 +744,16 @@ def run_scan():
     log.info(f"  Category: {post_data['category_slug']}  KW: {post_data['focus_keyword']}")
 
     img_bytes = (
-        extract_source_image(best.get("url", "")) or
+        extract_source_image(best.get("url", ""), best.get("_og_image", "")) or
         fetch_pexels_image(post_data["focus_keyword"]) or
         make_fallback_image(best["title"])
     )
     today_str = now_ist.strftime("%Y-%m-%d")
-    filename  = f"tmt-breaking-{today_str}-{count_today+1}.jpg"
-    media_id  = upload_image_to_wp(img_bytes, filename, f"Breaking: {post_data['focus_keyword']}")
+    kw_fn     = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
+    filename  = f"{kw_fn}-breaking-{today_str}.jpg"
+    img_alt   = f"{post_data['title']} | The Mobile Times"
+    media_id  = upload_image_to_wp(img_bytes, filename, img_alt,
+                                   img_title=post_data["focus_keyword"])
 
     result = publish_breaking_post(post_data, media_id)
     if result:

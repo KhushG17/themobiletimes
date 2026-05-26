@@ -30,6 +30,8 @@ jobs:
           WP_USER:           ${{ secrets.WP_USER }}
           WP_APP_PASS:       ${{ secrets.WP_APP_PASS }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEWS_API_KEY:      ${{ secrets.NEWS_API_KEY }}
+          TMT_SECRET:        ${{ secrets.TMT_SECRET }}
           GSC_PROPERTY:      ${{ secrets.GSC_PROPERTY }}
         run: |
           if [ -f gsc-credentials.json ]; then
@@ -39,3 +41,30 @@ jobs:
             echo "Add your Google service account JSON as a GitHub Secret named GSC_CREDENTIALS"
             echo "and update this workflow to write it to gsc-credentials.json before running"
           fi
+
+  notify_failure:
+    name: Email alert on failure
+    needs: optimize
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send failure email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: themobiletimes@gmail.com
+          password: ${{ secrets.ALERT_EMAIL_PASS }}
+          subject: "TMT Alert: Monthly SEO workflow failed"
+          to: goyalkhush1214@gmail.com
+          from: "TMT Automation <themobiletimes@gmail.com>"
+          body: |
+            The monthly SEO optimizer failed to run.
+
+            Workflow:  ${{ github.workflow }}
+            Run ID:    ${{ github.run_id }}
+            Trigger:   ${{ github.event_name }}
+
+            View full logs and re-run:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

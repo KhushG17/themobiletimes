@@ -1,0 +1,46 @@
+# The Mobile Times
+
+> India's dedicated telecom and technology trade publication, publishing since 2010. Daily news for mobile industry professionals on 5G networks, TRAI regulatory decisions, Jio and Airtel strategies, device launches, cybersecurity, and India's digital economy. Editor-in-Chief: Sanjay Goyal, Jaipur.
+
+## Key Coverage Areas
+
+- [5G Networks](https://themobiletimes.com/industry-trends/5g-networks/): India 5G spectrum auctions, network rollout, 3GPP standards, GSMA reports, Jio and Airtel 5G coverage updates
+- [Policy Updates](https://themobiletimes.com/policy-updates/): TRAI rulings, DOT spectrum policy, ITU participation, regulatory frameworks affecting Indian telecom operators
+- [Market Trends](https://themobiletimes.com/market-trends/): Telecom revenue data, subscriber figures, M&A activity, Jio vs Airtel vs Vi vs BSNL competitive dynamics
+- [AI and Machine Learning](https://themobiletimes.com/technologies/ai-machine-learning/): AI adoption in India's telecom sector, LLM deployments, enterprise AI, generative AI market data
+- [Cybersecurity](https://themobiletimes.com/technologies/cybersecurity/): CERT-In directives, DPDPA enforcement, data breach coverage, enterprise security for Indian organisations
+- [OTT and Streaming](https://themobiletimes.com/industry-trends/ott-streaming/): JioCinema, Netflix India, Amazon Prime Video, Hotstar subscriber data, platform strategy, content deals
+- [Devices and Hardware](https://themobiletimes.com/devices-hardware/): Smartphone and tablet launches in India, price analysis, spec comparisons
+- [IoT](https://themobiletimes.com/industry-trends/internet-of-things/): Connected devices, smart home, Industrial IoT, M2M connectivity in India
+- [EV and Smart Grids](https://themobiletimes.com/industry-trends/ev-smart-grids/): Electric vehicle infrastructure, smart metering, grid modernisation
+- [Insights](https://themobiletimes.com/insights/): Long-form analysis, how-to guides, case studies, and expert commentary
+- [Exclusive](https://themobiletimes.com/exclusive/): Original reporting, investigations, and market intelligence from TMT editorial
+
+## About The Publication
+
+The Mobile Times was founded in 2010 as a monthly print newsletter covering India's mobile trade industry. It now publishes daily digital content and a monthly print edition. The publication is read by telecom operators, device manufacturers, policy professionals, and mobile retailers across India.
+
+Editor-in-Chief Sanjay Goyal is based in Jaipur, Rajasthan. He has covered India's telecom industry for over 15 years, with a focus on 5G rollout, TRAI regulatory developments, smartphone market dynamics, and India's digital infrastructure.
+
+Key facts:
+- Founded: 2010
+- Location: Jaipur, Rajasthan, India
+- Coverage: Indian telecom, 5G, policy, devices, AI, cybersecurity, OTT
+- Audience: Telecom operators, device trade professionals, policy stakeholders, mobile industry executives
+- Authority sources cited: TRAI, DOT, GSMA, COAI, 3GPP, ITU, CERT-In
+
+## Site Pages
+
+- [Homepage](https://themobiletimes.com/): Latest daily news
+- [About](https://themobiletimes.com/about/): Publication history and team
+- [Newsletter](https://themobiletimes.com/newsletter/): Weekly telecom briefing (every Monday)
+- [Contact](https://themobiletimes.com/contact/): Editorial and advertising enquiries
+- [Media Kit](https://themobiletimes.com/media-kit/): Advertising and sponsorship information
+- [Privacy Policy](https://themobiletimes.com/privacy-policy/): Data handling policy
+- [Terms and Conditions](https://themobiletimes.com/terms-conditions/): Terms of use
+
+## Contact
+
+Email: themobiletimes@gmail.com
+WhatsApp: +91 9314001214
+Social: Facebook, X (Twitter), Instagram, LinkedIn, YouTube
