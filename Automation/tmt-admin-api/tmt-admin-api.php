@@ -768,9 +768,18 @@ function tmt_site_info( WP_REST_Request $req ) {
    VIEWS  (Light Views Counter — custom table wp_lvc_post_views)
 ═══════════════════════════════════════════════════════════════════════════ */
 
+function tmt_lvc_table(): string {
+    global $wpdb;
+    foreach ( [ 'lightvc_post_views', 'lvc_post_views' ] as $suffix ) {
+        $t = $wpdb->prefix . $suffix;
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$t'" ) === $t ) return $t;
+    }
+    return $wpdb->prefix . 'lightvc_post_views'; // fallback
+}
+
 function tmt_lvc_set_views( int $post_id, int $count ): bool {
     global $wpdb;
-    $table = $wpdb->prefix . 'lvc_post_views';
+    $table = tmt_lvc_table();
     $result = $wpdb->query( $wpdb->prepare(
         "INSERT INTO `$table` (post_id, view_count, last_updated)
          VALUES (%d, %d, NOW())
@@ -784,7 +793,7 @@ function tmt_views_seed( WP_REST_Request $req ) {
     if ( ! tmt_auth( $req ) ) return tmt_no();
 
     global $wpdb;
-    $table = $wpdb->prefix . 'lvc_post_views';
+    $table = tmt_lvc_table();
     $bulk  = (bool) $req->get_param( 'bulk' );
     $force = (bool) $req->get_param( 'force' );
 
@@ -806,8 +815,8 @@ function tmt_views_seed( WP_REST_Request $req ) {
             tmt_lvc_set_views( (int) $id, rand( 300, 2000 ) );
             $seeded++;
         }
-        tmt_log( "views/seed bulk: seeded=$seeded total=" . count( $posts ) );
-        return [ 'success' => true, 'seeded' => $seeded, 'total' => count( $posts ) ];
+        tmt_log( "views/seed bulk: table=$table seeded=$seeded total=" . count( $posts ) );
+        return [ 'success' => true, 'table' => $table, 'seeded' => $seeded, 'total' => count( $posts ) ];
     }
 
     $post_id = absint( $req->get_param( 'post_id' ) );
