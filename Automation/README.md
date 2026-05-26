@@ -14,7 +14,7 @@ This system runs themobiletimes.com automatically — no human needs to touch it
 
 **Every single day, without you doing anything:**
 
-- At 5 specific times (8am, 10am, 12pm, 3pm, 6pm IST), GitHub's free servers wake up, scan Indian telecom news from **35+ RSS feeds + News API** (150,000 sources), Claude AI picks the most relevant story from all available categories, writes a 430–1,000 word article, finds a matching image (source article image first → Pexels → fallback), watermarks it with the TMT logo, and publishes it to WordPress.
+- At 5 specific times (8am, 10am, 12pm, 3pm, 6pm IST), GitHub's free servers wake up, scan Indian telecom news from **35+ RSS feeds + News API** (150,000 sources), Claude AI picks the most relevant story from all available categories, writes a 430–1,000 word article, finds a matching image (source article image first → Unsplash → Pexels → fallback), watermarks it with the TMT logo, and publishes it to WordPress.
 
 - Every 30 minutes, a separate check scans for truly breaking news (Airtel launching 5G in a new city, TRAI issuing a new rule, etc.). If something important enough is found, it publishes immediately as a breaking news post.
 
@@ -69,8 +69,8 @@ GitHub wakes up at scheduled time
      - Articles under 400 words
      - Wrong years auto-corrected (2020–2025 → 2026)
 6. Image pipeline:
-     News API urlToImage → Source article OG image → Pexels stock photo → fallback
-     → Resize to 1200×628 → Watermark (9% width, 80% opacity) → Upload to WordPress
+     News API urlToImage → Source article OG image → Unsplash → Pexels stock photo → fallback
+     → Resize to 1200×628 → Watermark (9% width, 80% opacity, ALL images incl. body) → Upload to WordPress
      Alt text: "{Article Title} | The Mobile Times"
      Title attribute: focus keyword
 7. Publish the article live (never sticky)
@@ -132,7 +132,8 @@ themobiletimes.com
         │       ├── Claude Haiku 4.5       → story routing, SEO metadata
         │       ├── News API (newsapi.org) → 150,000+ sources, keyword queries
         │       ├── 35+ RSS feeds          → India + global telecom/tech news
-        │       ├── Pexels                 → featured images (royalty-free)
+        │       ├── Unsplash               → primary stock images (free commercial use) ⏭ key pending
+        │       ├── Pexels                 → fallback stock images (royalty-free)
         │       ├── fal.ai                 → AI image generation (blog posts)
         │       ├── IndexNow               → instant Bing/Yandex indexing
         │       └── Google Search Console  → monthly traffic data
@@ -330,6 +331,7 @@ Go to: `Repo → Settings → Secrets and variables → Actions → New reposito
 | `NEWS_API_KEY` | newsapi.org key | ✅ |
 | `TMT_SECRET` | tmt-admin-api plugin secret | ✅ |
 | `ALERT_EMAIL_PASS` | Gmail app password for failure alerts | ✅ |
+| `UNSPLASH_ACCESS_KEY` | Unsplash API key — unsplash.com/developers → New Application → copy Access Key | ⏭ Add later |
 | `INDEXNOW_KEY` | Handled by Rank Math | ✅ Skipped |
 | `GSC_PROPERTY` | `https://themobiletimes.com/` | ⏭ Skipped |
 | `GSC_CREDENTIALS` | Google service account JSON | ⏭ Skipped |
@@ -398,7 +400,7 @@ Go to: `Repo → Settings → Secrets and variables → Actions → New reposito
 - [x] Breaking monitor — max 3/day, score threshold 65
 - [x] IndexNow instant indexing on every publish
 - [x] Auto-TOC injection for 800+ word articles with 3+ H2 sections
-- [x] Body image (second Pexels photo, no watermark) injected between sections
+- [x] Body image (Unsplash → Pexels, watermarked) injected between sections
 - [x] `pexels_used_ids.json` deduplication — same Pexels photo never reused
 - [x] tmt-admin-api plugin — health, post/update, update-meta, cache/flush endpoints
 - [x] llms.txt live at themobiletimes.com/llms.txt for AI citation
@@ -535,6 +537,7 @@ FAL_API_KEY           = ...
 NEWS_API_KEY          = ...
 TMT_SECRET            = ...
 ALERT_EMAIL_PASS      = ...   (Gmail app password for failure alerts)
+UNSPLASH_ACCESS_KEY   = ...   (add later — unsplash.com/developers → New Application → Access Key)
 INDEXNOW_KEY          = ...   (optional — Rank Math handles this)
 GSC_PROPERTY          = https://themobiletimes.com/   (skipped)
 GSC_CREDENTIALS       = { ... full JSON ... }          (skipped)
