@@ -1866,7 +1866,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
                 "how-to-guides": "technology guide setup",
             }
             blog_body_bytes = fetch_pexels_image(
-                _slot5_map.get(blog_subcat, "India telecom technology"), watermark=False
+                _slot5_map.get(blog_subcat, "India telecom technology"), watermark=True
             )
             if blog_body_bytes:
                 _, blog_body_url = upload_image_to_wp(
@@ -1949,8 +1949,8 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         }
         body_search = _cat_to_search.get(post_data.get("category_slug", ""), "India telecom technology")
         body_img_bytes = (
-            fetch_google_image(body_search, watermark=False) or
-            fetch_pexels_image(body_search, watermark=False)
+            fetch_google_image(body_search, watermark=True) or
+            fetch_pexels_image(body_search, watermark=True)
         )
         if body_img_bytes:
             body_media_id, body_img_url = upload_image_to_wp(
@@ -2053,8 +2053,8 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         }
         body_search2   = _cat_to_search2.get(post_data.get("category_slug", ""), "India telecom technology")
         body_img_bytes = (
-            fetch_google_image(body_search2, watermark=False) or
-            fetch_pexels_image(body_search2, watermark=False)
+            fetch_google_image(body_search2, watermark=True) or
+            fetch_pexels_image(body_search2, watermark=True)
         )
         if body_img_bytes:
             _, body_url = upload_image_to_wp(
@@ -2113,8 +2113,8 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     }
     _blog_body_q    = _blog_body_map.get(blog_body_kw, "India telecom technology")
     blog_body_bytes = (
-        fetch_google_image(_blog_body_q, watermark=False) or
-        fetch_pexels_image(_blog_body_q, watermark=False)
+        fetch_google_image(_blog_body_q, watermark=True) or
+        fetch_pexels_image(_blog_body_q, watermark=True)
     )
     if blog_body_bytes:
         _, blog_body_url = upload_image_to_wp(
