@@ -51,3 +51,5 @@ Logo/
 # ─── Keep these tracked ───────────────────────────────────────────────────────
 # seen_urls.json  ← tracked (dedup history between GitHub Actions runs)
 # breaking_seen.json  ← tracked (breaking news dedup history)
+foxiz-v2.7.5/
+foxiz-v2.7.5/

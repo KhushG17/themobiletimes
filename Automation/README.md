@@ -235,45 +235,6 @@ TMT/
 │   │     This file. Full system documentation.
 │   │
 │   │
-│   └── archive/  (superseded scripts — kept for reference, never run)
-│       │
-│       ├── tmt_engine.py
-│       │     Original v1 publishing engine using SQLite queue. Replaced by
-│       │     mobiletimes_agent.py which uses seen_urls.json + GitHub-native dedup.
-│       │
-│       ├── wp_setup.py
-│       │     One-time script that created all 24 categories, set permalinks,
-│       │     configured WordPress options at the start of the project.
-│       │     Already run — do not run again.
-│       │
-│       ├── wp_cleanup.py
-│       │     One-time cleanup: deleted test posts, removed junk categories,
-│       │     stripped WordPress default content. Already run.
-│       │
-│       ├── wp_audit.py
-│       │     Read-only audit that counted posts per category, checked tag usage,
-│       │     listed all published posts. Used during initial site inspection.
-│       │
-│       ├── wp_design_audit.py
-│       │     Read-only audit of theme templates and article HTML structure.
-│       │     Used to understand how Foxiz renders articles.
-│       │
-│       ├── wp_design_fix.py
-│       │     Injected custom article CSS (tmt-highlights, tmt-quote, etc.) via REST.
-│       │     Superseded — CSS now lives in tmt-admin-api.php and the Foxiz theme.
-│       │
-│       ├── fix_existing_posts.py
-│       │     Bulk-fixed wrong years (2025 → 2026) and missing Rank Math meta on
-│       │     all posts published before the QA system was added. Already run.
-│       │
-│       ├── fill_empty_categories.py
-│       │     Published one seeding post in each of the 5 empty categories at
-│       │     launch so no category page would show "no posts". Already run.
-│       │
-│       └── test_connections.py
-│               Pre-flight connection tester. Verified WordPress API, Anthropic,
-│               Pexels, News API, and Rank Math all responded before going live.
-│               Not needed anymore — agent health-checks on every run.
 │
 └── .github/
     └── workflows/
