@@ -1940,13 +1940,13 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         if body_img_bytes:
             body_media_id, body_img_url = upload_image_to_wp(
                 body_img_bytes, f"{kw_filename}-body-{today_str}.jpg",
-                alt=f"{body_kw} | The Mobile Times",
-                img_title=body_kw,
+                alt=f"{post_data['focus_keyword']} | The Mobile Times",
+                img_title=post_data["focus_keyword"],
             )
             if body_img_url:
                 post_data["content"] = inject_body_image_html(
                     post_data["content"], body_img_url,
-                    f"{body_kw} | The Mobile Times"
+                    f"{post_data['focus_keyword']} | The Mobile Times"
                 )
 
         result = publish_post(post_data, media_id, sticky=False,
@@ -2044,11 +2044,13 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         if body_img_bytes:
             _, body_url = upload_image_to_wp(
                 body_img_bytes, f"{kw_filename}-body-{today_str}-{i+1}.jpg",
-                alt=f"{body_kw2} | The Mobile Times", img_title=body_kw2,
+                alt=f"{post_data['focus_keyword']} | The Mobile Times",
+                img_title=post_data["focus_keyword"],
             )
             if body_url:
                 post_data["content"] = inject_body_image_html(
-                    post_data["content"], body_url, f"{body_kw2} | The Mobile Times"
+                    post_data["content"], body_url,
+                    f"{post_data['focus_keyword']} | The Mobile Times"
                 )
 
         result = publish_post(post_data, media_id, sticky=False, slot_idx=i)
