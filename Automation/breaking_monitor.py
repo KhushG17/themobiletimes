@@ -331,7 +331,7 @@ def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
             headers={"Authorization": f"Basic {creds}", "Content-Type": "application/json"},
             json={
                 "alt_text": alt[:125],
-                "title":    (img_title or alt)[:125],
+                "title":    alt[:125],   # use full alt so Foxiz theme renders correct alt attribute
                 "caption":  "© The Mobile Times",
             },
             timeout=15,

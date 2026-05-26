@@ -530,7 +530,7 @@ def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
             headers={"Authorization": f"Basic {creds}", "Content-Type": "application/json"},
             json={
                 "alt_text": alt[:125],
-                "title":    (img_title or alt)[:125],
+                "title":    alt[:125],   # use full alt so Foxiz theme renders correct alt attribute
                 "caption":  "© The Mobile Times",
             },
             timeout=15,
@@ -1799,7 +1799,14 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
                 img_title=blog_data["focus_keyword"],
             )
             # Body image for blog
-            blog_body_bytes = fetch_pexels_image(f"{blog_data['focus_keyword']} India", watermark=False)
+            _slot5_map = {
+                "industry-insights": "India business technology", "case-studies": "India business office",
+                "policy-updates": "India government parliament", "market-trends": "India market economy",
+                "how-to-guides": "technology guide setup",
+            }
+            blog_body_bytes = fetch_pexels_image(
+                _slot5_map.get(blog_subcat, "India telecom technology"), watermark=False
+            )
             if blog_body_bytes:
                 _, blog_body_url = upload_image_to_wp(
                     blog_body_bytes, f"{blog_kw_filename}-body-{today_str}.jpg",
@@ -1869,8 +1876,17 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         )
 
         # Body image: fetch a second Pexels image and inject into article body
-        body_kw = post_data.get("focus_keyword", "telecom India")
-        body_img_bytes = fetch_pexels_image(f"{body_kw} network", watermark=False)
+        # Use category-level search term — more likely to find results than the specific focus keyword
+        _cat_to_search = {
+            "5g-networks": "5G network India", "smartphones-tablets": "smartphone India",
+            "cybersecurity": "cybersecurity data", "ai-machine-learning": "artificial intelligence",
+            "policy-updates": "India government policy", "market-trends": "India business market",
+            "industry-insights": "telecom India industry", "tech-innovation": "technology innovation",
+            "ott-streaming": "streaming video India", "ev-smart-grids": "electric vehicle India",
+            "internet-of-things": "IoT smart devices", "software": "software technology",
+        }
+        body_search = _cat_to_search.get(post_data.get("category_slug", ""), "India telecom technology")
+        body_img_bytes = fetch_pexels_image(body_search, watermark=False)
         if body_img_bytes:
             body_media_id, body_img_url = upload_image_to_wp(
                 body_img_bytes, f"{kw_filename}-body-{today_str}.jpg",
@@ -1961,9 +1977,17 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         img_title = post_data["focus_keyword"]
         media_id, feat_img_url  = upload_image_to_wp(img_bytes, filename, alt_text, img_title=img_title)
 
-        # Body image injection
-        body_kw2       = post_data.get("focus_keyword", "telecom India")
-        body_img_bytes = fetch_pexels_image(f"{body_kw2} network", watermark=False)
+        # Body image injection — use category search for reliable Pexels results
+        _cat_to_search2 = {
+            "5g-networks": "5G network India", "smartphones-tablets": "smartphone India",
+            "cybersecurity": "cybersecurity data", "ai-machine-learning": "artificial intelligence",
+            "policy-updates": "India government policy", "market-trends": "India business market",
+            "industry-insights": "telecom India industry", "tech-innovation": "technology innovation",
+            "ott-streaming": "streaming video India", "ev-smart-grids": "electric vehicle India",
+            "internet-of-things": "IoT smart devices", "software": "software technology",
+        }
+        body_search2   = _cat_to_search2.get(post_data.get("category_slug", ""), "India telecom technology")
+        body_img_bytes = fetch_pexels_image(body_search2, watermark=False)
         if body_img_bytes:
             _, body_url = upload_image_to_wp(
                 body_img_bytes, f"{kw_filename}-body-{today_str}-{i+1}.jpg",
@@ -2012,8 +2036,13 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     blog_media_id, blog_img_url = upload_image_to_wp(blog_img, blog_filename, blog_alt,
                                                      img_title=blog_data["focus_keyword"])
     # Body image for batch blog
-    blog_body_kw    = blog_data.get("focus_keyword", "India telecom")
-    blog_body_bytes = fetch_pexels_image(f"{blog_body_kw} India", watermark=False)
+    blog_body_kw    = blog_data.get("category_slug", "industry-insights")
+    _blog_body_map  = {
+        "industry-insights": "India business technology", "case-studies": "India business office",
+        "policy-updates": "India government parliament", "market-trends": "India market economy",
+        "how-to-guides": "technology guide setup",
+    }
+    blog_body_bytes = fetch_pexels_image(_blog_body_map.get(blog_body_kw, "India telecom technology"), watermark=False)
     if blog_body_bytes:
         _, blog_body_url = upload_image_to_wp(
             blog_body_bytes, f"{blog_kw_fn}-body-{today_str}.jpg",
