@@ -781,11 +781,11 @@ function tmt_lvc_set_views( int $post_id, int $count ): bool {
     global $wpdb;
     $table = tmt_lvc_table();
     $result = $wpdb->query( $wpdb->prepare(
-        "INSERT INTO `$table` (post_id, view_count, last_updated)
-         VALUES (%d, %d, NOW())
-         ON DUPLICATE KEY UPDATE view_count = %d, last_updated = NOW()",
+        "INSERT INTO `$table` (post_id, view_count) VALUES (%d, %d) ON DUPLICATE KEY UPDATE view_count = %d",
         $post_id, $count, $count
     ) );
+    // Clear object cache for this post (LVC uses group 'lightvc', key 'lightvc_views_{id}')
+    wp_cache_delete( 'lightvc_views_' . $post_id, 'lightvc' );
     return $result !== false;
 }
 
@@ -815,6 +815,7 @@ function tmt_views_seed( WP_REST_Request $req ) {
             tmt_lvc_set_views( (int) $id, rand( 300, 2000 ) );
             $seeded++;
         }
+        wp_cache_flush(); // clear LVC transient/object cache so new counts show immediately
         tmt_log( "views/seed bulk: table=$table seeded=$seeded total=" . count( $posts ) );
         return [ 'success' => true, 'table' => $table, 'seeded' => $seeded, 'total' => count( $posts ) ];
     }
