@@ -510,23 +510,32 @@ def extract_source_image(url: str, direct_img_url: str = "") -> bytes | None:
 
 def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
                        img_title: str = "") -> tuple[int | None, str | None]:
-    """Upload image via tmt-admin-api (no Application Password needed)."""
+    """Upload image via WP REST API with Application Password auth."""
     try:
-        import base64 as _b64
         r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/media/upload",
-            json={
-                "secret":       TMT_SECRET,
-                "filename":     filename,
-                "image_base64": _b64.b64encode(img_bytes).decode(),
-                "alt_text":     alt[:125],
-                "title":        (img_title or alt)[:125],
+            f"{WP_URL}/wp-json/wp/v2/media",
+            headers={
+                "Authorization":      f"Basic {creds}",
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Type":       "image/jpeg",
             },
+            data=img_bytes,
             timeout=60,
         )
         r.raise_for_status()
         rj = r.json()
-        return rj["id"], rj["source_url"]
+        media_id = rj["id"]
+        requests.post(
+            f"{WP_URL}/wp-json/wp/v2/media/{media_id}",
+            headers={"Authorization": f"Basic {creds}", "Content-Type": "application/json"},
+            json={
+                "alt_text": alt[:125],
+                "title":    (img_title or alt)[:125],
+                "caption":  "© The Mobile Times",
+            },
+            timeout=15,
+        )
+        return media_id, rj.get("source_url", "")
     except Exception as e:
         log.warning(f"Image upload failed: {e}")
         return None, None
@@ -537,16 +546,18 @@ def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
 def get_published_titles(limit: int = 100) -> set[str]:
     """Fetch recent published post titles for duplicate detection."""
     try:
-        r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/post/list",
-            json={"secret": TMT_SECRET, "per_page": limit, "post_status": "any"},
+        r = requests.get(
+            f"{WP_URL}/wp-json/wp/v2/posts",
+            headers={"Authorization": f"Basic {creds}"},
+            params={"per_page": min(limit, 100), "status": "publish,draft",
+                    "_fields": "title,slug"},
             timeout=15,
         )
         if not r.ok:
             return set()
         titles = set()
-        for p in r.json().get("posts", []):
-            t = p["title"].lower().strip()
+        for p in r.json():
+            t = re.sub(r"<[^>]+>", "", p["title"]["rendered"]).lower().strip()
             titles.add(t)
             titles.add(p["slug"].replace("-", " "))
         return titles
@@ -598,14 +609,15 @@ def is_duplicate(story_title: str, published: set[str], threshold: float = 0.45)
 def get_recent_posts(limit: int = 12) -> list[dict]:
     """Fetch recent published posts for inter-article linking."""
     try:
-        r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/post/list",
-            json={"secret": TMT_SECRET, "per_page": limit, "post_status": "publish"},
+        r = requests.get(
+            f"{WP_URL}/wp-json/wp/v2/posts",
+            headers={"Authorization": f"Basic {creds}"},
+            params={"per_page": limit, "status": "publish", "_fields": "title,link"},
             timeout=15,
         )
         if not r.ok:
             return []
-        return [{"title": p["title"], "link": p["url"]} for p in r.json().get("posts", [])]
+        return r.json()
     except Exception:
         return []
 
@@ -1706,21 +1718,20 @@ def publish_post(post_data: dict, featured_media_id: int | None,
         status, date_local, date_gmt = get_slot_publish_time(slot_idx)
 
     payload = {
-        "secret":           TMT_SECRET,
-        "title":            post_data["title"],
-        "content":          post_data["content"],
-        "status":           status,
-        "slug":             post_data["slug"],
-        "categories":       [cat_id],
-        "tags":             tag_ids,
-        "sticky":           sticky,
-        "featured_image_id": featured_media_id or 0,
+        "title":          post_data["title"],
+        "content":        post_data["content"],
+        "status":         status,
+        "slug":           post_data["slug"],
+        "categories":     [cat_id],
+        "tags":           tag_ids,
+        "featured_media": featured_media_id or 0,
+        "sticky":         sticky,
     }
     if date_local and status == "future":
         payload["date"]     = date_local
         payload["date_gmt"] = date_gmt
 
-    r = requests.post(f"{WP_URL}/wp-json/tmt/v1/post/create", json=payload, timeout=30)
+    r = requests.post(f"{WP_URL}/wp-json/wp/v2/posts", headers=WP_HDR, json=payload, timeout=30)
     if r.ok:
         post = r.json()
         save_rank_math_meta(post["id"], post_data)

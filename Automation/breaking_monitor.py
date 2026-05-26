@@ -177,12 +177,12 @@ def already_seen(title: str) -> bool:
 
 
 def already_published_on_wp(title: str) -> bool:
-    """Check WP REST API for a similar post in the last 24 h — stateless dedup for GitHub Actions."""
+    """Check WP REST API for a similar post in the last 24h — stateless dedup for GitHub Actions."""
     try:
-        cutoff = (datetime.now(IST) - timedelta(hours=24)).astimezone(timezone.utc).isoformat()
-        r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/post/list",
-            json={"secret": TMT_SECRET, "per_page": 20, "post_status": "any"},
+        r = requests.get(
+            f"{WP_URL}/wp-json/wp/v2/posts",
+            headers={"Authorization": f"Basic {creds}"},
+            params={"per_page": 20, "status": "publish", "_fields": "title"},
             timeout=10,
         )
         if not r.ok:
@@ -190,8 +190,8 @@ def already_published_on_wp(title: str) -> bool:
         STOPWORDS = {"the", "and", "for", "with", "from", "that", "this", "are",
                      "was", "has", "its", "have", "will", "india", "2026"}
         title_words = set(re.findall(r"\b\w{3,}\b", title.lower())) - STOPWORDS
-        for post in r.json().get("posts", []):
-            pub_title = post["title"].lower()
+        for post in r.json():
+            pub_title = re.sub(r"<[^>]+>", "", post["title"]["rendered"]).lower()
             pub_words = set(re.findall(r"\b\w{3,}\b", pub_title)) - STOPWORDS
             if not pub_words:
                 continue
@@ -314,20 +314,29 @@ def make_fallback_image(title: str) -> bytes:
 def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
                        img_title: str = "") -> int | None:
     try:
-        import base64 as _b64
         r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/media/upload",
-            json={
-                "secret":       TMT_SECRET,
-                "filename":     filename,
-                "image_base64": _b64.b64encode(img_bytes).decode(),
-                "alt_text":     alt[:125],
-                "title":        (img_title or alt)[:125],
+            f"{WP_URL}/wp-json/wp/v2/media",
+            headers={
+                "Authorization":       f"Basic {creds}",
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Type":        "image/jpeg",
             },
+            data=img_bytes,
             timeout=60,
         )
         r.raise_for_status()
-        return r.json()["id"]
+        media_id = r.json()["id"]
+        requests.post(
+            f"{WP_URL}/wp-json/wp/v2/media/{media_id}",
+            headers={"Authorization": f"Basic {creds}", "Content-Type": "application/json"},
+            json={
+                "alt_text": alt[:125],
+                "title":    (img_title or alt)[:125],
+                "caption":  "© The Mobile Times",
+            },
+            timeout=15,
+        )
+        return media_id
     except Exception as e:
         log.warning(f"Image upload failed: {e}")
         return None
@@ -659,17 +668,16 @@ def publish_breaking_post(post_data: dict, media_id: int | None) -> dict | None:
     tag_ids = [TAG_IDS["breaking-news"]]
 
     payload = {
-        "secret":           TMT_SECRET,
-        "title":            post_data["title"],
-        "content":          post_data["content"],
-        "status":           "publish",
-        "slug":             post_data["slug"],
-        "categories":       [cat_id],
-        "tags":             tag_ids,
-        "sticky":           False,
-        "featured_image_id": media_id or 0,
+        "title":          post_data["title"],
+        "content":        post_data["content"],
+        "status":         "publish",
+        "slug":           post_data["slug"],
+        "categories":     [cat_id],
+        "tags":           tag_ids,
+        "featured_media": media_id or 0,
+        "sticky":         False,
     }
-    r = requests.post(f"{WP_URL}/wp-json/tmt/v1/post/create", json=payload, timeout=30)
+    r = requests.post(f"{WP_URL}/wp-json/wp/v2/posts", headers=WP_HDR, json=payload, timeout=30)
     if r.ok:
         post = r.json()
         save_rank_math_meta(post["id"], post_data)
