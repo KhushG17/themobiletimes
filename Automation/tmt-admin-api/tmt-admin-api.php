@@ -79,6 +79,7 @@ add_action( 'rest_api_init', function () {
 
         // media / images
         'media/list'         => 'tmt_media_list',
+        'media/upload'       => 'tmt_media_upload',
         'media/update'       => 'tmt_media_update',
 
         // terms (categories, tags, custom taxonomies)
@@ -226,8 +227,10 @@ function tmt_post_create( WP_REST_Request $req ) {
         'post_type'    => sanitize_text_field( $req->get_param( 'post_type' ) ?: 'post' ),
         'post_author'  => absint( $req->get_param( 'author_id' ) ?: 1 ),
         'post_name'    => sanitize_title( $req->get_param( 'slug' ) ?: $title ),
-        'post_date'    => sanitize_text_field( $req->get_param( 'date' ) ?: '' ),
     ];
+
+    if ( $d = sanitize_text_field( $req->get_param( 'date' ) ) )     $args['post_date']     = $d;
+    if ( $d = sanitize_text_field( $req->get_param( 'date_gmt' ) ) ) $args['post_date_gmt'] = $d;
 
     if ( $cats = $req->get_param( 'categories' ) ) $args['post_category'] = array_map( 'intval', (array) $cats );
     if ( $tags = $req->get_param( 'tags' ) )       $args['tags_input']    = (array) $tags;
@@ -236,14 +239,16 @@ function tmt_post_create( WP_REST_Request $req ) {
     if ( is_wp_error( $id ) ) return tmt_err( $id->get_error_message() );
 
     if ( $thumb = absint( $req->get_param( 'featured_image_id' ) ) ) set_post_thumbnail( $id, $thumb );
+    if ( $req->get_param( 'sticky' ) )                               stick_post( $id );
 
     // Rank Math meta if supplied
     foreach ( [ 'rank_math_title', 'rank_math_description', 'rank_math_focus_keyword' ] as $mk ) {
         if ( $v = $req->get_param( $mk ) ) update_post_meta( $id, $mk, wp_kses_post( $v ) );
     }
 
+    $url = get_permalink( $id );
     tmt_log( "post/create: ID=$id title=$title" );
-    return [ 'success' => true, 'id' => $id, 'url' => get_permalink( $id ) ];
+    return [ 'success' => true, 'id' => $id, 'url' => $url, 'link' => $url ];
 }
 
 
@@ -371,6 +376,47 @@ function tmt_media_list( WP_REST_Request $req ) {
     }, $q->posts );
 
     return [ 'success' => true, 'total' => $q->found_posts, 'media' => $media ];
+}
+
+
+function tmt_media_upload( WP_REST_Request $req ) {
+    if ( ! tmt_auth( $req ) ) return tmt_no();
+
+    $b64      = $req->get_param( 'image_base64' );
+    $filename = sanitize_file_name( $req->get_param( 'filename' ) ?: 'image.jpg' );
+    if ( ! $b64 ) return tmt_bad( 'Missing image_base64.' );
+
+    $image_data = base64_decode( $b64 );
+    if ( ! $image_data ) return tmt_bad( 'Invalid base64 data.' );
+
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+
+    $tmp = wp_tempnam( $filename );
+    file_put_contents( $tmp, $image_data );
+
+    $attachment_id = media_handle_sideload( [
+        'name'     => $filename,
+        'tmp_name' => $tmp,
+        'type'     => 'image/jpeg',
+        'size'     => strlen( $image_data ),
+        'error'    => UPLOAD_ERR_OK,
+    ], 0 );
+
+    @unlink( $tmp );
+
+    if ( is_wp_error( $attachment_id ) ) return tmt_err( $attachment_id->get_error_message() );
+
+    $alt   = sanitize_text_field( $req->get_param( 'alt_text' ) ?: '' );
+    $title = sanitize_text_field( $req->get_param( 'title'    ) ?: $alt );
+
+    wp_update_post( [ 'ID' => $attachment_id, 'post_title' => $title, 'post_excerpt' => '© The Mobile Times' ] );
+    update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt );
+
+    $src = wp_get_attachment_url( $attachment_id );
+    tmt_log( "media/upload: ID=$attachment_id file=$filename" );
+    return [ 'success' => true, 'id' => $attachment_id, 'source_url' => $src, 'link' => $src ];
 }
 
 

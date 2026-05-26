@@ -510,31 +510,23 @@ def extract_source_image(url: str, direct_img_url: str = "") -> bytes | None:
 
 def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
                        img_title: str = "") -> tuple[int | None, str | None]:
-    """Upload image and set alt text, title attribute, and caption for image SEO.
-    Returns (media_id, source_url) — source_url is used for body image injection."""
+    """Upload image via tmt-admin-api (no Application Password needed)."""
     try:
-        upload_headers = {
-            "Authorization": f"Basic {creds}",
-            "Content-Disposition": f"attachment; filename={filename}",
-            "Content-Type": "image/jpeg",
-        }
-        r = requests.post(f"{WP_URL}/wp-json/wp/v2/media", headers=upload_headers,
-                          data=img_bytes, timeout=30)
-        r.raise_for_status()
-        rj       = r.json()
-        media_id = rj["id"]
-        img_url  = rj.get("source_url", "")
-        # Set alt text (Rank Math check), title attribute, and caption
-        requests.post(
-            f"{WP_URL}/wp-json/wp/v2/media/{media_id}",
-            headers=WP_HDR,
+        import base64 as _b64
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/media/upload",
             json={
-                "alt_text": alt[:125],
-                "title":    img_title or alt[:125],
-                "caption":  "© The Mobile Times",
+                "secret":       TMT_SECRET,
+                "filename":     filename,
+                "image_base64": _b64.b64encode(img_bytes).decode(),
+                "alt_text":     alt[:125],
+                "title":        (img_title or alt)[:125],
             },
+            timeout=60,
         )
-        return media_id, img_url
+        r.raise_for_status()
+        rj = r.json()
+        return rj["id"], rj["source_url"]
     except Exception as e:
         log.warning(f"Image upload failed: {e}")
         return None, None
@@ -545,17 +537,16 @@ def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
 def get_published_titles(limit: int = 100) -> set[str]:
     """Fetch recent published post titles for duplicate detection."""
     try:
-        r = requests.get(
-            f"{WP_URL}/wp-json/wp/v2/posts",
-            headers=WP_HDR,
-            params={"per_page": limit, "status": "publish,future", "_fields": "title,slug"},
-            timeout=15
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/post/list",
+            json={"secret": TMT_SECRET, "per_page": limit, "post_status": "any"},
+            timeout=15,
         )
         if not r.ok:
             return set()
         titles = set()
-        for p in r.json():
-            t = re.sub(r"<[^>]+>", "", p["title"]["rendered"]).lower().strip()
+        for p in r.json().get("posts", []):
+            t = p["title"].lower().strip()
             titles.add(t)
             titles.add(p["slug"].replace("-", " "))
         return titles
@@ -607,13 +598,14 @@ def is_duplicate(story_title: str, published: set[str], threshold: float = 0.45)
 def get_recent_posts(limit: int = 12) -> list[dict]:
     """Fetch recent published posts for inter-article linking."""
     try:
-        r = requests.get(
-            f"{WP_URL}/wp-json/wp/v2/posts",
-            headers=WP_HDR,
-            params={"per_page": limit, "status": "publish", "_fields": "title,link"},
-            timeout=15
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/post/list",
+            json={"secret": TMT_SECRET, "per_page": limit, "post_status": "publish"},
+            timeout=15,
         )
-        return r.json() if r.ok else []
+        if not r.ok:
+            return []
+        return [{"title": p["title"], "link": p["url"]} for p in r.json().get("posts", [])]
     except Exception:
         return []
 
@@ -1676,40 +1668,29 @@ def get_tag_ids(tag_slugs: list[str]) -> list[int]:
     return [TAG_IDS[s] for s in tag_slugs if s in TAG_IDS]
 
 def save_rank_math_meta(post_id: int, post_data: dict):
-    """Save Rank Math SEO meta via their dedicated REST endpoint."""
-    meta_payload = {
-        "objectID":   post_id,
-        "objectType": "post",
-        "meta": {
-            "rank_math_title":               post_data["meta_title"],
-            "rank_math_description":         post_data["meta_description"],
-            "rank_math_focus_keyword":       post_data["focus_keyword"],
-            "rank_math_og_title":            post_data["og_title"],
-            "rank_math_og_description":      post_data["og_description"],
-            "rank_math_twitter_title":       post_data["og_title"],
-            "rank_math_twitter_description": post_data["og_description"],
-        }
-    }
+    """Save Rank Math SEO meta via tmt-admin-api plugin."""
     r = requests.post(
-        f"{WP_URL}/wp-json/rankmath/v1/updateMeta",
-        headers=WP_HDR,
-        json=meta_payload,
-        timeout=15
+        f"{WP_URL}/wp-json/tmt/v1/update-meta",
+        json={
+            "secret":     TMT_SECRET,
+            "objectID":   post_id,
+            "objectType": "post",
+            "meta": {
+                "rank_math_title":               post_data["meta_title"],
+                "rank_math_description":         post_data["meta_description"],
+                "rank_math_focus_keyword":       post_data["focus_keyword"],
+                "rank_math_og_title":            post_data["og_title"],
+                "rank_math_og_description":      post_data["og_description"],
+                "rank_math_twitter_title":       post_data["og_title"],
+                "rank_math_twitter_description": post_data["og_description"],
+            },
+        },
+        timeout=15,
     )
     if r.ok:
         log.info(f"  Rank Math meta saved for post {post_id}")
     else:
-        # Fallback: update via standard WP meta endpoint
-        r2 = requests.post(
-            f"{WP_URL}/wp-json/wp/v2/posts/{post_id}",
-            headers=WP_HDR,
-            json={"meta": meta_payload["meta"]},
-            timeout=15
-        )
-        if r2.ok:
-            log.info(f"  Rank Math meta saved via WP meta for post {post_id}")
-        else:
-            log.warning(f"  Rank Math meta save failed ({r.status_code}) — check REST API setting")
+        log.warning(f"  Rank Math meta save failed ({r.status_code})")
 
 def publish_post(post_data: dict, featured_media_id: int | None,
                  sticky: bool = False, draft: bool = False, slot_idx: int = 0) -> dict | None:
@@ -1725,20 +1706,21 @@ def publish_post(post_data: dict, featured_media_id: int | None,
         status, date_local, date_gmt = get_slot_publish_time(slot_idx)
 
     payload = {
-        "title":          post_data["title"],
-        "content":        post_data["content"],
-        "status":         status,
-        "slug":           post_data["slug"],
-        "categories":     [cat_id],
-        "tags":           tag_ids,
-        "sticky":         sticky,
-        "featured_media": featured_media_id or 0,
+        "secret":           TMT_SECRET,
+        "title":            post_data["title"],
+        "content":          post_data["content"],
+        "status":           status,
+        "slug":             post_data["slug"],
+        "categories":       [cat_id],
+        "tags":             tag_ids,
+        "sticky":           sticky,
+        "featured_image_id": featured_media_id or 0,
     }
     if date_local and status == "future":
         payload["date"]     = date_local
         payload["date_gmt"] = date_gmt
 
-    r = requests.post(f"{WP_URL}/wp-json/wp/v2/posts", headers=WP_HDR, json=payload, timeout=30)
+    r = requests.post(f"{WP_URL}/wp-json/tmt/v1/post/create", json=payload, timeout=30)
     if r.ok:
         post = r.json()
         save_rank_math_meta(post["id"], post_data)
@@ -1821,7 +1803,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             result = publish_post(blog_data, blog_media_id, sticky=False,
                                   draft=test_mode, slot_idx=4)
             if result:
-                post_url = result.get("link", "")
+                post_url = result.get("url", result.get("link", ""))
                 log.info(f"  Slot 5 published: {post_url}")
                 ping_indexing(post_url)
                 save_seen_urls(set())
@@ -1893,7 +1875,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         result = publish_post(post_data, media_id, sticky=False,
                               draft=test_mode, slot_idx=slot - 1)
         if result:
-            post_url = result.get("link", "")
+            post_url = result.get("url", result.get("link", ""))
             log.info(f"  Slot {slot} published: {post_url}")
             ping_indexing(post_url)
             save_seen_urls({story.get("url")} - {"", WP_URL, None})
@@ -1983,7 +1965,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
         result = publish_post(post_data, media_id, sticky=False, slot_idx=i)
         if result:
-            post_url  = result.get("link", "")
+            post_url  = result.get("url", result.get("link", ""))
             scheduled = result.get("status") == "future"
             log.info(f"  {'Scheduled' if scheduled else 'Published'} [{POST_TIMES_IST[i]} IST]: {post_url}")
             ping_indexing(post_url)
@@ -2034,7 +2016,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
     blog_result = publish_post(blog_data, blog_media_id, sticky=False, slot_idx=4)
     if blog_result:
-        blog_url  = blog_result.get("link", "")
+        blog_url  = blog_result.get("url", "")
         scheduled = blog_result.get("status") == "future"
         log.info(f"  Blog {'scheduled' if scheduled else 'published'} [{POST_TIMES_IST[4]} IST]: {blog_url}")
         ping_indexing(blog_url)
@@ -2126,7 +2108,7 @@ if __name__ == "__main__":
         media_id, _ = upload_image_to_wp(img, f"{url_kw_fn}-rewrite.jpg", post_data["focus_keyword"])
         result = publish_post(post_data, media_id, sticky=False)
         if result:
-            post_url = result.get("link", "")
+            post_url = result.get("url", result.get("link", ""))
             log.info(f"  Published: {post_url}")
             ping_indexing(post_url)
             try:
@@ -2163,7 +2145,7 @@ if __name__ == "__main__":
         media_id, _ = upload_image_to_wp(img, f"{single_kw_fn}.jpg", post_data["focus_keyword"])
         result   = publish_post(post_data, media_id, sticky=False)
         if result:
-            log.info(f"  Published: {result.get('link', '')}")
+            log.info(f"  Published: {result.get('url', result.get('link', ''))}")
         else:
             log.error("  Publish failed")
 

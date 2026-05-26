@@ -180,19 +180,18 @@ def already_published_on_wp(title: str) -> bool:
     """Check WP REST API for a similar post in the last 24 h — stateless dedup for GitHub Actions."""
     try:
         cutoff = (datetime.now(IST) - timedelta(hours=24)).astimezone(timezone.utc).isoformat()
-        r = requests.get(
-            f"{WP_URL}/wp-json/wp/v2/posts",
-            headers=WP_HDR,
-            params={"per_page": 20, "status": "publish,future", "_fields": "title", "after": cutoff},
-            timeout=10
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/post/list",
+            json={"secret": TMT_SECRET, "per_page": 20, "post_status": "any"},
+            timeout=10,
         )
         if not r.ok:
             return False
         STOPWORDS = {"the", "and", "for", "with", "from", "that", "this", "are",
                      "was", "has", "its", "have", "will", "india", "2026"}
         title_words = set(re.findall(r"\b\w{3,}\b", title.lower())) - STOPWORDS
-        for post in r.json():
-            pub_title = re.sub(r"<[^>]+>", "", post["title"]["rendered"]).lower()
+        for post in r.json().get("posts", []):
+            pub_title = post["title"].lower()
             pub_words = set(re.findall(r"\b\w{3,}\b", pub_title)) - STOPWORDS
             if not pub_words:
                 continue
@@ -315,24 +314,20 @@ def make_fallback_image(title: str) -> bytes:
 def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
                        img_title: str = "") -> int | None:
     try:
-        upload_headers = {
-            "Authorization": f"Basic {creds}",
-            "Content-Disposition": f"attachment; filename={filename}",
-            "Content-Type": "image/jpeg",
-        }
-        r = requests.post(f"{WP_URL}/wp-json/wp/v2/media", headers=upload_headers, data=img_bytes, timeout=30)
-        r.raise_for_status()
-        media_id = r.json()["id"]
-        requests.post(
-            f"{WP_URL}/wp-json/wp/v2/media/{media_id}",
-            headers=WP_HDR,
+        import base64 as _b64
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/media/upload",
             json={
-                "alt_text": alt,
-                "title":    img_title or alt,
-                "caption":  "© The Mobile Times",
+                "secret":       TMT_SECRET,
+                "filename":     filename,
+                "image_base64": _b64.b64encode(img_bytes).decode(),
+                "alt_text":     alt[:125],
+                "title":        (img_title or alt)[:125],
             },
+            timeout=60,
         )
-        return media_id
+        r.raise_for_status()
+        return r.json()["id"]
     except Exception as e:
         log.warning(f"Image upload failed: {e}")
         return None
@@ -640,48 +635,41 @@ META_JSON:{{"article_title":"[title]","slug":"[slug]-2026","focus_keyword":"[2-4
 # ─── WordPress Publishing ─────────────────────────────────────────────────────
 
 def save_rank_math_meta(post_id: int, post_data: dict):
-    meta_payload = {
-        "objectID":   post_id,
-        "objectType": "post",
-        "meta": {
-            "rank_math_title":               post_data["meta_title"],
-            "rank_math_description":         post_data["meta_description"],
-            "rank_math_focus_keyword":       post_data["focus_keyword"],
-            "rank_math_og_title":            post_data["og_title"],
-            "rank_math_og_description":      post_data["og_description"],
-            "rank_math_twitter_title":       post_data["og_title"],
-            "rank_math_twitter_description": post_data["og_description"],
-        }
-    }
-    r = requests.post(
-        f"{WP_URL}/wp-json/rankmath/v1/updateMeta",
-        headers=WP_HDR,
-        json=meta_payload,
-        timeout=15
+    requests.post(
+        f"{WP_URL}/wp-json/tmt/v1/update-meta",
+        json={
+            "secret":     TMT_SECRET,
+            "objectID":   post_id,
+            "objectType": "post",
+            "meta": {
+                "rank_math_title":               post_data["meta_title"],
+                "rank_math_description":         post_data["meta_description"],
+                "rank_math_focus_keyword":       post_data["focus_keyword"],
+                "rank_math_og_title":            post_data["og_title"],
+                "rank_math_og_description":      post_data["og_description"],
+                "rank_math_twitter_title":       post_data["og_title"],
+                "rank_math_twitter_description": post_data["og_description"],
+            },
+        },
+        timeout=15,
     )
-    if not r.ok:
-        requests.post(
-            f"{WP_URL}/wp-json/wp/v2/posts/{post_id}",
-            headers=WP_HDR,
-            json={"meta": meta_payload["meta"]},
-            timeout=15
-        )
 
 def publish_breaking_post(post_data: dict, media_id: int | None) -> dict | None:
     cat_id  = BREAKING_CATEGORY_IDS.get(post_data["category_slug"], BREAKING_CATEGORY_IDS["industry-trends"])
     tag_ids = [TAG_IDS["breaking-news"]]
 
     payload = {
-        "title":          post_data["title"],
-        "content":        post_data["content"],
-        "status":         "publish",
-        "slug":           post_data["slug"],
-        "categories":     [cat_id],
-        "tags":           tag_ids,
-        "sticky":         False,
-        "featured_media": media_id or 0,
+        "secret":           TMT_SECRET,
+        "title":            post_data["title"],
+        "content":          post_data["content"],
+        "status":           "publish",
+        "slug":             post_data["slug"],
+        "categories":       [cat_id],
+        "tags":             tag_ids,
+        "sticky":           False,
+        "featured_image_id": media_id or 0,
     }
-    r = requests.post(f"{WP_URL}/wp-json/wp/v2/posts", headers=WP_HDR, json=payload, timeout=30)
+    r = requests.post(f"{WP_URL}/wp-json/tmt/v1/post/create", json=payload, timeout=30)
     if r.ok:
         post = r.json()
         save_rank_math_meta(post["id"], post_data)
@@ -757,7 +745,7 @@ def run_scan():
 
     result = publish_breaking_post(post_data, media_id)
     if result:
-        post_url = result.get("link", "")
+        post_url = result.get("url", result.get("link", ""))
         log.info(f"  BREAKING PUBLISHED: {post_url}")
         mark_published(best["title"])
         ping_indexing(post_url)
