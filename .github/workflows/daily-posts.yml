@@ -74,6 +74,7 @@ jobs:
           LINKEDIN_ORG_ID:      ${{ secrets.LINKEDIN_ORG_ID }}
           META_ACCESS_TOKEN:    ${{ secrets.META_ACCESS_TOKEN }}
           META_PAGE_ID:         ${{ secrets.META_PAGE_ID }}
+          UNSPLASH_ACCESS_KEY:  ${{ secrets.UNSPLASH_ACCESS_KEY }}
           NEWS_API_KEY:         ${{ secrets.NEWS_API_KEY }}
           TMT_SECRET:           ${{ secrets.TMT_SECRET }}
           INDEXNOW_KEY:         ${{ secrets.INDEXNOW_KEY }}
