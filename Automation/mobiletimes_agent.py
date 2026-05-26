@@ -45,6 +45,8 @@ NEWS_API_KEY  = os.getenv("NEWS_API_KEY", "133cb2222fb8400d8e28a10c892d22f8")
 TMT_SECRET    = os.getenv("TMT_SECRET", "TMT2026xK9mSEO")
 LOGO_PATH     = os.getenv("LOGO_PATH", "assets/Circle_Logo.png")
 INDEXNOW_KEY  = os.getenv("INDEXNOW_KEY", "")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+GOOGLE_CSE_ID  = os.getenv("GOOGLE_CSE_ID", "")
 SEEN_URLS_FILE    = Path(__file__).resolve().parent / "seen_urls.json"
 PEXELS_SEEN_FILE  = Path(__file__).resolve().parent / "pexels_used_ids.json"
 
@@ -427,6 +429,64 @@ def fetch_fal_image(topic: str) -> bytes | None:
     except Exception as e:
         log.warning(f"fal.ai fetch failed: {e}")
         return None
+
+def fetch_google_image(query: str, watermark: bool = True) -> bytes | None:
+    """Search Google Custom Search API for CC-licensed/public-domain images.
+    Only returns images explicitly licensed for reuse (cc_publicdomain, cc_attribute, cc_sharealike).
+    Falls back to None if no suitable image found — caller should try Pexels next."""
+    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+        return None
+    try:
+        r = requests.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params={
+                "key":        GOOGLE_API_KEY,
+                "cx":         GOOGLE_CSE_ID,
+                "q":          query,
+                "searchType": "image",
+                "imgSize":    "large",
+                "imgType":    "photo",
+                "num":        5,
+                "safe":       "active",
+                "rights":     "cc_publicdomain,cc_attribute,cc_sharealike",
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        if not items:
+            log.info(f"  Google image search: no CC-licensed results for '{query}'")
+            return None
+        for item in items[:4]:
+            img_url = item.get("link", "")
+            if not img_url:
+                continue
+            try:
+                img_r = requests.get(
+                    img_url,
+                    headers={"User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0)"},
+                    timeout=15,
+                )
+                if not img_r.ok or len(img_r.content) < 10_000:
+                    continue
+                img = Image.open(io.BytesIO(img_r.content)).convert("RGB")
+                if img.width < 400 or img.height < 300:
+                    continue
+                img = resize_image(img)
+                if watermark:
+                    img = add_watermark(img)
+                buf = io.BytesIO()
+                img.save(buf, "JPEG", quality=90)
+                log.info(f"  Google image found: {img_url[:70]}")
+                return buf.getvalue()
+            except Exception:
+                continue
+        log.info(f"  Google image search: all results failed to download for '{query}'")
+        return None
+    except Exception as e:
+        log.warning(f"Google image search failed: {e}")
+        return None
+
 
 def fetch_article_from_url(url: str) -> dict | None:
     """Scrape title, summary, and OG data from a source article URL."""
@@ -1789,6 +1849,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             blog_data = generate_blog_post(blog_topic, blog_subcat, date_str)
             blog_img = (
                 fetch_fal_image(blog_topic) or
+                fetch_google_image(blog_data["focus_keyword"]) or
                 fetch_pexels_image(blog_topic.split(":")[0]) or
                 make_fallback_image(blog_topic)
             )
@@ -1864,6 +1925,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
         img_bytes = (
             extract_source_image(story.get("url", ""), story.get("_og_image", "")) or
+            fetch_google_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
         )
@@ -1886,7 +1948,10 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             "internet-of-things": "IoT smart devices", "software": "software technology",
         }
         body_search = _cat_to_search.get(post_data.get("category_slug", ""), "India telecom technology")
-        body_img_bytes = fetch_pexels_image(body_search, watermark=False)
+        body_img_bytes = (
+            fetch_google_image(body_search, watermark=False) or
+            fetch_pexels_image(body_search, watermark=False)
+        )
         if body_img_bytes:
             body_media_id, body_img_url = upload_image_to_wp(
                 body_img_bytes, f"{kw_filename}-body-{today_str}.jpg",
@@ -1964,9 +2029,9 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
         post_data = generate_news_post(story, date_str)
 
-        # Image: source article OG → Pexels → fallback
         img_bytes = (
             extract_source_image(story.get("url", "")) or
+            fetch_google_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
         )
@@ -1987,7 +2052,10 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             "internet-of-things": "IoT smart devices", "software": "software technology",
         }
         body_search2   = _cat_to_search2.get(post_data.get("category_slug", ""), "India telecom technology")
-        body_img_bytes = fetch_pexels_image(body_search2, watermark=False)
+        body_img_bytes = (
+            fetch_google_image(body_search2, watermark=False) or
+            fetch_pexels_image(body_search2, watermark=False)
+        )
         if body_img_bytes:
             _, body_url = upload_image_to_wp(
                 body_img_bytes, f"{kw_filename}-body-{today_str}-{i+1}.jpg",
@@ -2027,6 +2095,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
     blog_img = (
         fetch_fal_image(blog_topic) or
+        fetch_google_image(blog_data["focus_keyword"]) or
         fetch_pexels_image(blog_topic.split(":")[0]) or
         make_fallback_image(blog_topic)
     )
@@ -2042,7 +2111,11 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         "policy-updates": "India government parliament", "market-trends": "India market economy",
         "how-to-guides": "technology guide setup",
     }
-    blog_body_bytes = fetch_pexels_image(_blog_body_map.get(blog_body_kw, "India telecom technology"), watermark=False)
+    _blog_body_q    = _blog_body_map.get(blog_body_kw, "India telecom technology")
+    blog_body_bytes = (
+        fetch_google_image(_blog_body_q, watermark=False) or
+        fetch_pexels_image(_blog_body_q, watermark=False)
+    )
     if blog_body_bytes:
         _, blog_body_url = upload_image_to_wp(
             blog_body_bytes, f"{blog_kw_fn}-body-{today_str}.jpg",
@@ -2141,6 +2214,7 @@ if __name__ == "__main__":
         log.info(f"  Generated title: {post_data['title']}")
         img = (
             extract_source_image(source_url) or
+            fetch_google_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
         )
@@ -2178,6 +2252,7 @@ if __name__ == "__main__":
         post_data = generate_news_post(story, date_str)
         log.info(f"  Generated title: {post_data['title']}")
         img = (
+            fetch_google_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(topic)
         )
@@ -2201,7 +2276,7 @@ if __name__ == "__main__":
                 log.info(f"  Title: {post_data['title'][:60]}")
                 log.info(f"  Category: {post_data['category_slug']}  Tags: {post_data['tags']}")
                 log.info(f"  Focus keyword: {post_data['focus_keyword']}")
-                img      = extract_source_image(story.get("url", "")) or fetch_pexels_image(post_data["focus_keyword"]) or make_fallback_image(story["title"])
+                img      = extract_source_image(story.get("url", "")) or fetch_google_image(post_data["focus_keyword"]) or fetch_pexels_image(post_data["focus_keyword"]) or make_fallback_image(story["title"])
                 test_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
                 media_id, _ = upload_image_to_wp(img, f"{test_kw_fn}-test.jpg", post_data["focus_keyword"])
                 result   = publish_post(post_data, media_id, sticky=False, draft=True)
