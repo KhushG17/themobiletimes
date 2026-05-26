@@ -36,8 +36,7 @@ NEWS_API_KEY   = os.getenv("NEWS_API_KEY", "133cb2222fb8400d8e28a10c892d22f8")
 TMT_SECRET     = os.getenv("TMT_SECRET", "TMT2026xK9mSEO")
 LOGO_PATH      = os.getenv("LOGO_PATH", "assets/Circle_Logo.png")
 INDEXNOW_KEY   = os.getenv("INDEXNOW_KEY", "")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-GOOGLE_CSE_ID  = os.getenv("GOOGLE_CSE_ID", "")
+UNSPLASH_KEY   = os.getenv("UNSPLASH_ACCESS_KEY", "")
 
 IST           = pytz.timezone("Asia/Kolkata")
 creds         = base64.b64encode(f"{WP_USER}:{WP_PASS}".encode()).decode()
@@ -271,40 +270,30 @@ def fetch_pexels_image(keyword: str) -> bytes | None:
         log.warning(f"Pexels fetch failed: {e}")
         return None
 
-def fetch_google_image(query: str) -> bytes | None:
-    """Search Google Custom Search API for CC-licensed/public-domain images (with watermark)."""
-    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+def fetch_unsplash_image(query: str) -> bytes | None:
+    """Search Unsplash for free-to-use images (Unsplash License — commercial use allowed, no attribution required). Always watermarks."""
+    if not UNSPLASH_KEY:
         return None
     try:
         r = requests.get(
-            "https://www.googleapis.com/customsearch/v1",
+            "https://api.unsplash.com/search/photos",
+            headers={"Authorization": f"Client-ID {UNSPLASH_KEY}"},
             params={
-                "key":        GOOGLE_API_KEY,
-                "cx":         GOOGLE_CSE_ID,
-                "q":          query,
-                "searchType": "image",
-                "imgSize":    "large",
-                "imgType":    "photo",
-                "num":        5,
-                "safe":       "active",
-                "rights":     "cc_publicdomain,cc_attribute,cc_sharealike",
+                "query":          query,
+                "orientation":    "landscape",
+                "per_page":       5,
+                "content_filter": "high",
             },
             timeout=15,
         )
         r.raise_for_status()
-        items = r.json().get("items", [])
-        if not items:
+        results = r.json().get("results", [])
+        if not results:
             return None
-        for item in items[:4]:
-            img_url = item.get("link", "")
-            if not img_url:
-                continue
+        for photo in results[:3]:
+            img_url = photo["urls"]["regular"]
             try:
-                img_r = requests.get(
-                    img_url,
-                    headers={"User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0)"},
-                    timeout=15,
-                )
+                img_r = requests.get(img_url, timeout=20)
                 if not img_r.ok or len(img_r.content) < 10_000:
                     continue
                 img = Image.open(io.BytesIO(img_r.content)).convert("RGB")
@@ -314,13 +303,13 @@ def fetch_google_image(query: str) -> bytes | None:
                 img = add_watermark(img)
                 buf = io.BytesIO()
                 img.save(buf, "JPEG", quality=90)
-                log.info(f"  Google image found: {img_url[:70]}")
+                log.info(f"  Unsplash image: {photo.get('id','')} by {photo.get('user',{}).get('name','')}")
                 return buf.getvalue()
             except Exception:
                 continue
         return None
     except Exception as e:
-        log.warning(f"Google image search failed: {e}")
+        log.warning(f"Unsplash fetch failed: {e}")
         return None
 
 
@@ -796,7 +785,7 @@ def run_scan():
 
     img_bytes = (
         extract_source_image(best.get("url", ""), best.get("_og_image", "")) or
-        fetch_google_image(post_data["focus_keyword"]) or
+        fetch_unsplash_image(post_data["focus_keyword"]) or
         fetch_pexels_image(post_data["focus_keyword"]) or
         make_fallback_image(best["title"])
     )

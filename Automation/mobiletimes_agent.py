@@ -45,8 +45,7 @@ NEWS_API_KEY  = os.getenv("NEWS_API_KEY", "133cb2222fb8400d8e28a10c892d22f8")
 TMT_SECRET    = os.getenv("TMT_SECRET", "TMT2026xK9mSEO")
 LOGO_PATH     = os.getenv("LOGO_PATH", "assets/Circle_Logo.png")
 INDEXNOW_KEY  = os.getenv("INDEXNOW_KEY", "")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-GOOGLE_CSE_ID  = os.getenv("GOOGLE_CSE_ID", "")
+UNSPLASH_KEY   = os.getenv("UNSPLASH_ACCESS_KEY", "")
 SEEN_URLS_FILE    = Path(__file__).resolve().parent / "seen_urls.json"
 PEXELS_SEEN_FILE  = Path(__file__).resolve().parent / "pexels_used_ids.json"
 
@@ -430,43 +429,30 @@ def fetch_fal_image(topic: str) -> bytes | None:
         log.warning(f"fal.ai fetch failed: {e}")
         return None
 
-def fetch_google_image(query: str, watermark: bool = True) -> bytes | None:
-    """Search Google Custom Search API for CC-licensed/public-domain images.
-    Only returns images explicitly licensed for reuse (cc_publicdomain, cc_attribute, cc_sharealike).
-    Falls back to None if no suitable image found — caller should try Pexels next."""
-    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
+    """Search Unsplash for free-to-use images (Unsplash License — commercial use allowed, no attribution required)."""
+    if not UNSPLASH_KEY:
         return None
     try:
         r = requests.get(
-            "https://www.googleapis.com/customsearch/v1",
+            "https://api.unsplash.com/search/photos",
+            headers={"Authorization": f"Client-ID {UNSPLASH_KEY}"},
             params={
-                "key":        GOOGLE_API_KEY,
-                "cx":         GOOGLE_CSE_ID,
-                "q":          query,
-                "searchType": "image",
-                "imgSize":    "large",
-                "imgType":    "photo",
-                "num":        5,
-                "safe":       "active",
-                "rights":     "cc_publicdomain,cc_attribute,cc_sharealike",
+                "query":          query,
+                "orientation":    "landscape",
+                "per_page":       5,
+                "content_filter": "high",
             },
             timeout=15,
         )
         r.raise_for_status()
-        items = r.json().get("items", [])
-        if not items:
-            log.info(f"  Google image search: no CC-licensed results for '{query}'")
+        results = r.json().get("results", [])
+        if not results:
             return None
-        for item in items[:4]:
-            img_url = item.get("link", "")
-            if not img_url:
-                continue
+        for photo in results[:3]:
+            img_url = photo["urls"]["regular"]
             try:
-                img_r = requests.get(
-                    img_url,
-                    headers={"User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0)"},
-                    timeout=15,
-                )
+                img_r = requests.get(img_url, timeout=20)
                 if not img_r.ok or len(img_r.content) < 10_000:
                     continue
                 img = Image.open(io.BytesIO(img_r.content)).convert("RGB")
@@ -477,14 +463,13 @@ def fetch_google_image(query: str, watermark: bool = True) -> bytes | None:
                     img = add_watermark(img)
                 buf = io.BytesIO()
                 img.save(buf, "JPEG", quality=90)
-                log.info(f"  Google image found: {img_url[:70]}")
+                log.info(f"  Unsplash image: {photo.get('id','')} by {photo.get('user',{}).get('name','')}")
                 return buf.getvalue()
             except Exception:
                 continue
-        log.info(f"  Google image search: all results failed to download for '{query}'")
         return None
     except Exception as e:
-        log.warning(f"Google image search failed: {e}")
+        log.warning(f"Unsplash fetch failed: {e}")
         return None
 
 
@@ -1849,7 +1834,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             blog_data = generate_blog_post(blog_topic, blog_subcat, date_str)
             blog_img = (
                 fetch_fal_image(blog_topic) or
-                fetch_google_image(blog_data["focus_keyword"]) or
+                fetch_unsplash_image(blog_data["focus_keyword"]) or
                 fetch_pexels_image(blog_topic.split(":")[0]) or
                 make_fallback_image(blog_topic)
             )
@@ -1925,7 +1910,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
         img_bytes = (
             extract_source_image(story.get("url", ""), story.get("_og_image", "")) or
-            fetch_google_image(post_data["focus_keyword"]) or
+            fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
         )
@@ -1949,7 +1934,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         }
         body_search = _cat_to_search.get(post_data.get("category_slug", ""), "India telecom technology")
         body_img_bytes = (
-            fetch_google_image(body_search, watermark=True) or
+            fetch_unsplash_image(body_search, watermark=True) or
             fetch_pexels_image(body_search, watermark=True)
         )
         if body_img_bytes:
@@ -2031,7 +2016,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
         img_bytes = (
             extract_source_image(story.get("url", "")) or
-            fetch_google_image(post_data["focus_keyword"]) or
+            fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
         )
@@ -2053,7 +2038,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         }
         body_search2   = _cat_to_search2.get(post_data.get("category_slug", ""), "India telecom technology")
         body_img_bytes = (
-            fetch_google_image(body_search2, watermark=True) or
+            fetch_unsplash_image(body_search2, watermark=True) or
             fetch_pexels_image(body_search2, watermark=True)
         )
         if body_img_bytes:
@@ -2095,7 +2080,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
     blog_img = (
         fetch_fal_image(blog_topic) or
-        fetch_google_image(blog_data["focus_keyword"]) or
+        fetch_unsplash_image(blog_data["focus_keyword"]) or
         fetch_pexels_image(blog_topic.split(":")[0]) or
         make_fallback_image(blog_topic)
     )
@@ -2113,7 +2098,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     }
     _blog_body_q    = _blog_body_map.get(blog_body_kw, "India telecom technology")
     blog_body_bytes = (
-        fetch_google_image(_blog_body_q, watermark=True) or
+        fetch_unsplash_image(_blog_body_q, watermark=True) or
         fetch_pexels_image(_blog_body_q, watermark=True)
     )
     if blog_body_bytes:
@@ -2214,7 +2199,7 @@ if __name__ == "__main__":
         log.info(f"  Generated title: {post_data['title']}")
         img = (
             extract_source_image(source_url) or
-            fetch_google_image(post_data["focus_keyword"]) or
+            fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
         )
@@ -2252,7 +2237,7 @@ if __name__ == "__main__":
         post_data = generate_news_post(story, date_str)
         log.info(f"  Generated title: {post_data['title']}")
         img = (
-            fetch_google_image(post_data["focus_keyword"]) or
+            fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(topic)
         )
@@ -2276,7 +2261,7 @@ if __name__ == "__main__":
                 log.info(f"  Title: {post_data['title'][:60]}")
                 log.info(f"  Category: {post_data['category_slug']}  Tags: {post_data['tags']}")
                 log.info(f"  Focus keyword: {post_data['focus_keyword']}")
-                img      = extract_source_image(story.get("url", "")) or fetch_google_image(post_data["focus_keyword"]) or fetch_pexels_image(post_data["focus_keyword"]) or make_fallback_image(story["title"])
+                img      = extract_source_image(story.get("url", "")) or fetch_unsplash_image(post_data["focus_keyword"]) or fetch_pexels_image(post_data["focus_keyword"]) or make_fallback_image(story["title"])
                 test_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
                 media_id, _ = upload_image_to_wp(img, f"{test_kw_fn}-test.jpg", post_data["focus_keyword"])
                 result   = publish_post(post_data, media_id, sticky=False, draft=True)
