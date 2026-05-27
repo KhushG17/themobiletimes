@@ -795,6 +795,9 @@ def run_scan():
 
     if scored[0][0] < SCORE_THRESHOLD:
         log.info(f"Score {scored[0][0]} below threshold {SCORE_THRESHOLD} — no breaking post")
+        # Mark top candidates as seen so they don't reappear every run
+        for _, s in scored[:5]:
+            mark_published(s["title"])
         return
 
     best = scored[0][1]
