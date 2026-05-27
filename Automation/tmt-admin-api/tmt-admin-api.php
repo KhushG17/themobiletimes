@@ -829,10 +829,23 @@ function tmt_views_seed( WP_REST_Request $req ) {
     $post_id = absint( $req->get_param( 'post_id' ) );
     if ( ! $post_id ) return tmt_bad( 'Missing post_id (or pass bulk=true to seed all posts).' );
 
-    $count = absint( $req->get_param( 'count' ) ?: rand( 300, 2000 ) );
-    tmt_lvc_set_views( $post_id, $count );
+    // Verify the LVC table actually exists before trying to insert
+    $table_name = tmt_lvc_table();
+    if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) !== $table_name ) {
+        tmt_log( "views/seed ERROR: table $table_name does not exist — is Light Views Counter active?" );
+        return new WP_Error( 'lvc_table_missing', 'Light Views Counter table not found. Activate the plugin.', [ 'status' => 500 ] );
+    }
+
+    $count  = absint( $req->get_param( 'count' ) ?: rand( 300, 2000 ) );
+    $ok     = tmt_lvc_set_views( $post_id, $count );
+
+    if ( ! $ok ) {
+        tmt_log( "views/seed ERROR: DB insert failed for ID=$post_id" );
+        return new WP_Error( 'lvc_insert_failed', 'DB insert failed.', [ 'status' => 500 ] );
+    }
+
     tmt_log( "views/seed: ID=$post_id count=$count" );
-    return [ 'success' => true, 'post_id' => $post_id, 'count' => $count ];
+    return [ 'success' => true, 'post_id' => $post_id, 'count' => $count, 'meta_key' => 'lvc_views' ];
 }
 
 

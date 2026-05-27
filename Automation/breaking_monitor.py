@@ -568,7 +568,8 @@ URL: {story['url']}
 Generate a new SEO-optimized breaking news title:
 • Derive the best 2–4 word focus keyword from this story
 • Must contain that focus keyword
-• Must start with or contain a power word: Breaking, Major, Urgent, Live, Just In, Alert, Launches, Warns, Reveals, Expands, Hits, Surges
+• Must start with or contain a power word: Major, Urgent, Live, Just In, Alert, Launches, Warns, Reveals, Expands, Hits, Surges
+• NEVER prefix the title with "Breaking:" or "Breaking News:" as a label — the urgency must come from the power word woven into the sentence, not as a tag
 • Must contain 1 number (year 2026, percentage, or statistic)
 • 55–70 characters total
 
@@ -671,6 +672,18 @@ META_JSON:{{"article_title":"[title]","slug":"[slug]-2026","focus_keyword":"[2-4
 
     kw    = meta.get("focus_keyword", "India telecom breaking news")
     title = meta.get("article_title", story["title"])
+
+    # Strip any "Breaking:" label prefixes the AI may have added despite instructions
+    _breaking_prefixes = (
+        "Breaking News: ", "Breaking News: ",
+        "Breaking: ", "BREAKING: ",
+        "BREAKING NEWS: ", "Breaking — ", "BREAKING — ",
+        "Breaking News — ", "BREAKING NEWS — ",
+    )
+    for _pfx in _breaking_prefixes:
+        if title.startswith(_pfx):
+            title = title[len(_pfx):].strip()
+            break
 
     # QA: fix years and detect placeholders before publishing
     html_content, title, _ = validate_and_fix(html_content, title)
