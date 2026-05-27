@@ -513,11 +513,48 @@ def fetch_all_breaking_stories() -> list[dict]:
 # ─── Story Scoring ────────────────────────────────────────────────────────────
 
 BREAKING_KEYWORDS = [
-    "breaking", "urgent", "just in", "first", "launch", "launches", "announces",
-    "ban", "banned", "shutdown", "outage", "down", "breach", "hack", "arrest",
-    "regulation", "fined", "penalty", "acquired", "merger", "ipo", "funding",
-    "5g", "jio", "airtel", "vi", "vodafone", "bsnl", "trai", "doi", "dot",
-    "india", "crore", "billion", "million", "record", "highest", "lowest",
+    # ── Urgency signals ──────────────────────────────────────────────────────
+    "breaking", "urgent", "just in", "exclusive", "alert", "live",
+    "first", "new", "latest", "official", "confirmed",
+
+    # ── Action verbs ─────────────────────────────────────────────────────────
+    "launches", "launch", "announces", "announced", "unveils", "unveiled",
+    "acquires", "acquired", "merger", "merges", "partners", "partnership",
+    "raises", "raised", "invests", "invested", "funding", "ipo",
+    "fined", "penalty", "penalised", "arrested", "raided", "seized",
+    "banned", "ban", "blocked", "shutdown", "suspended", "revoked",
+    "outage", "down", "breach", "hack", "hacked", "leak", "leaked",
+    "cuts", "layoffs", "fired", "resigns", "resigned", "appoints", "appointed",
+    "hikes", "hike", "reduces", "slashes", "price cut", "price hike",
+    "record", "highest", "lowest", "first ever", "largest", "biggest",
+
+    # ── Indian telecom operators ──────────────────────────────────────────────
+    "jio", "airtel", "bsnl", "vi", "vodafone idea", "vodafone",
+    "mtnl", "tata communications", "tata tele", "reliance",
+
+    # ── Regulators & government bodies ───────────────────────────────────────
+    "trai", "dot", "doi", "meity", "mnre", "cci", "sebi", "rbi",
+    "supreme court", "high court", "parliament", "government", "ministry",
+    "telecom bill", "digital india", "bharat net", "pm wani",
+
+    # ── Global telcos & tech giants ───────────────────────────────────────────
+    "samsung", "apple", "xiaomi", "realme", "oppo", "vivo", "oneplus",
+    "google", "meta", "microsoft", "amazon", "tesla", "spacex", "starlink",
+    "nokia", "ericsson", "huawei", "qualcomm", "mediatek", "snapdragon",
+
+    # ── Technology terms ──────────────────────────────────────────────────────
+    "5g", "6g", "4g", "lte", "volte", "fiber", "fibre", "broadband",
+    "spectrum", "spectrum auction", "satellite", "leo", "esim",
+    "ai", "artificial intelligence", "cybersecurity", "ransomware",
+    "smartphone", "chip", "processor", "iot",
+
+    # ── Business metrics ──────────────────────────────────────────────────────
+    "crore", "lakh", "billion", "million", "revenue", "profit", "loss",
+    "subscribers", "subscriber", "market share", "quarterly", "results",
+    "agr", "dues", "license fee",
+
+    # ── India signals ─────────────────────────────────────────────────────────
+    "india", "indian", "delhi", "mumbai", "bangalore", "hyderabad",
 ]
 
 def score_story(story: dict) -> int:
