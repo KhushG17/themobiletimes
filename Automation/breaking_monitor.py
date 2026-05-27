@@ -410,6 +410,20 @@ def _title_overlaps(title: str, recent_titles: list[str], threshold: float = 0.6
             return True
     return False
 
+BREAKING_WINDOW_HOURS = 3   # only consider stories published in the last N hours
+
+def _entry_is_fresh(entry) -> bool:
+    """Return True if the RSS entry was published within BREAKING_WINDOW_HOURS."""
+    import calendar
+    for attr in ("published_parsed", "updated_parsed"):
+        t = getattr(entry, attr, None)
+        if t:
+            pub_utc = datetime.fromtimestamp(calendar.timegm(t), tz=timezone.utc)
+            age = datetime.now(timezone.utc) - pub_utc
+            return age.total_seconds() <= BREAKING_WINDOW_HOURS * 3600
+    # No timestamp — include it (some feeds omit dates)
+    return True
+
 def poll_rss() -> list[dict]:
     stories = []
     seen_hashes = set()
@@ -417,14 +431,19 @@ def poll_rss() -> list[dict]:
     seen_data = _load_seen()
     seen_published = set(seen_data.get("published", []))
     recent_wp_titles = _fetch_recent_wp_titles()
+    stale_count = 0
     for url in RSS_FEEDS:
         try:
             feed = feedparser.parse(url)
-            for entry in feed.entries[:10]:
+            for entry in feed.entries[:15]:
                 title   = entry.get("title", "").strip()
                 summary = entry.get("summary", entry.get("description", "")).strip()
                 link    = entry.get("link", "")
                 if not title or not link:
+                    continue
+                # Skip anything older than BREAKING_WINDOW_HOURS
+                if not _entry_is_fresh(entry):
+                    stale_count += 1
                     continue
                 h = _story_hash(title)
                 if h in seen_hashes or h in seen_published:
@@ -437,7 +456,7 @@ def poll_rss() -> list[dict]:
                                  "source": feed.feed.get("title", url)})
         except Exception as e:
             log.debug(f"RSS feed failed ({url}): {e}")
-    log.info(f"RSS poll: {len(stories)} new stories")
+    log.info(f"RSS poll: {len(stories)} fresh stories ({stale_count} older than {BREAKING_WINDOW_HOURS}h skipped)")
     return stories
 
 
@@ -795,9 +814,6 @@ def run_scan():
 
     if scored[0][0] < SCORE_THRESHOLD:
         log.info(f"Score {scored[0][0]} below threshold {SCORE_THRESHOLD} — no breaking post")
-        # Mark top candidates as seen so they don't reappear every run
-        for _, s in scored[:5]:
-            mark_published(s["title"])
         return
 
     best = scored[0][1]
