@@ -129,12 +129,20 @@ def get_current_meta_desc(post_id: int) -> str:
 
 
 def push_meta_description(post_id: int, new_desc: str) -> bool:
-    """Push updated meta description to Rank Math."""
-    r = requests.post(f"{WP_URL}/wp-json/rankmath/v1/updateMeta", headers=WP_HDR,
-            json={"objectID": post_id, "objectType": "post",
-                  "meta": {"rank_math_description": new_desc}},
-            timeout=15)
-    return r.ok and r.json().get("slug") is True
+    """Push updated meta description via tmt-admin-api."""
+    TMT_SECRET = os.getenv("TMT_SECRET", "")
+    r = requests.post(
+        f"{WP_URL}/wp-json/tmt/v1/update-meta",
+        headers={"Content-Type": "application/json"},
+        json={
+            "secret":     TMT_SECRET,
+            "objectID":   post_id,
+            "objectType": "post",
+            "meta":       {"rank_math_description": new_desc},
+        },
+        timeout=15,
+    )
+    return r.ok
 
 
 # ─── AI Rewrite ───────────────────────────────────────────────────────────────

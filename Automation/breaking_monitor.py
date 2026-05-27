@@ -32,8 +32,8 @@ WP_USER       = os.getenv("WP_USER")
 WP_PASS       = os.getenv("WP_APP_PASS")
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 PEXELS_KEY    = os.getenv("PEXELS_API_KEY")
-NEWS_API_KEY   = os.getenv("NEWS_API_KEY", "133cb2222fb8400d8e28a10c892d22f8")
-TMT_SECRET     = os.getenv("TMT_SECRET", "TMT2026xK9mSEO")
+NEWS_API_KEY   = os.getenv("NEWS_API_KEY", "")
+TMT_SECRET     = os.getenv("TMT_SECRET", "")
 LOGO_PATH      = os.getenv("LOGO_PATH", "assets/Circle_Logo.png")
 INDEXNOW_KEY   = os.getenv("INDEXNOW_KEY", "")
 UNSPLASH_KEY   = os.getenv("UNSPLASH_ACCESS_KEY", "")
@@ -63,7 +63,6 @@ log = logging.getLogger("tmt.breaking")
 MAX_BREAKING_PER_DAY = 3
 POLL_INTERVAL_MIN    = 17          # minutes between polls
 SCORE_THRESHOLD      = 45          # 0-100; only publish if story scores above this
-SEEN_FILE            = Path(__file__).resolve().parent / "breaking_seen.json"
 
 BREAKING_CATEGORY_IDS = {
     "5g-networks":     160,
@@ -187,11 +186,6 @@ def mark_published(title: str):
     # Trim seen list to last 500 entries
     data["published"] = data["published"][-500:]
     _save_seen(data)
-
-def already_seen(title: str) -> bool:
-    data = _load_seen()
-    return _story_hash(title) in data.get("published", [])
-
 
 
 
@@ -460,48 +454,6 @@ def poll_rss() -> list[dict]:
     return stories
 
 
-def fetch_newsapi_stories() -> list[dict]:
-    """Fetch high-priority breaking stories from News API (3 queries, ~15 req/day budget)."""
-    if not NEWS_API_KEY:
-        return []
-    results = []
-    seen_titles: set[str] = set()
-    queries = NEWS_API_QUERIES[:3]  # limit to 3 queries to preserve daily budget
-    for q in queries:
-        try:
-            r = requests.get(
-                "https://newsapi.org/v2/everything",
-                params={
-                    "q":        q,
-                    "sortBy":   "publishedAt",
-                    "pageSize": 5,
-                    "language": "en",
-                    "apiKey":   NEWS_API_KEY,
-                },
-                timeout=15,
-            )
-            if not r.ok:
-                log.warning(f"News API error ({r.status_code}) for query '{q}'")
-                continue
-            for art in r.json().get("articles", []):
-                title = (art.get("title") or "").strip()
-                if not title or "[Removed]" in title:
-                    continue
-                if title in seen_titles or already_seen(title) or already_published_on_wp(title):
-                    continue
-                seen_titles.add(title)
-                results.append({
-                    "title":     title,
-                    "summary":   (art.get("description") or "")[:600],
-                    "url":       art.get("url", ""),
-                    "source":    art.get("source", {}).get("name", "News API"),
-                    "_og_image": art.get("urlToImage", ""),
-                })
-        except Exception as e:
-            log.warning(f"News API fetch failed for '{q}': {e}")
-    log.info(f"News API: {len(results)} new stories")
-    return results
-
 
 def fetch_all_breaking_stories() -> list[dict]:
     """RSS-only breaking story feed. News API removed to preserve daily quota for slots."""
@@ -591,8 +543,8 @@ def validate_and_fix(content: str, title: str) -> tuple[str, str, list[str]]:
 
     # Hard-stop: article too short
     word_count = len(re.findall(r"\b\w+\b", re.sub(r"<[^>]+>", " ", content)))
-    if word_count < 350:
-        raise ValueError(f"Breaking article too short: {word_count} words (min 350). Aborting.")
+    if word_count < 500:
+        raise ValueError(f"Breaking article too short: {word_count} words (min 500). Aborting.")
 
     if warnings:
         log.warning(f"  Breaking QA: {'; '.join(warnings)}")
@@ -806,6 +758,25 @@ def publish_breaking_post(post_data: dict, media_id: int | None) -> dict | None:
     log.error(f"Breaking publish failed ({r.status_code}): {r.text[:200]}")
     return None
 
+def seed_post_views(post_id: int):
+    """Seed a random view count (300–2000) on a newly published post via tmt-admin-api."""
+    if not post_id:
+        return
+    try:
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/views/seed",
+            json={"secret": TMT_SECRET, "post_id": post_id},
+            timeout=10,
+        )
+        if r.ok:
+            data = r.json()
+            log.info(f"  Views seeded: {data.get('count')} (meta: {data.get('meta_key')})")
+        else:
+            log.warning(f"  Views seed responded {r.status_code}")
+    except Exception as e:
+        log.warning(f"Views seed failed: {e}")
+
+
 def ping_indexing(post_url: str):
     try:
         if INDEXNOW_KEY:
@@ -878,6 +849,7 @@ def run_scan():
         post_url = result.get("url", result.get("link", ""))
         log.info(f"  BREAKING PUBLISHED: {post_url}")
         mark_published(best["title"])
+        seed_post_views(result.get("id"))
         ping_indexing(post_url)
 
         try:

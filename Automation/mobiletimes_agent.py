@@ -41,13 +41,11 @@ WP_PASS       = os.getenv("WP_APP_PASS")
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 PEXELS_KEY    = os.getenv("PEXELS_API_KEY")
 FAL_KEY       = os.getenv("FAL_API_KEY")
-NEWS_API_KEY  = os.getenv("NEWS_API_KEY", "133cb2222fb8400d8e28a10c892d22f8")
-TMT_SECRET    = os.getenv("TMT_SECRET", "TMT2026xK9mSEO")
+NEWS_API_KEY  = os.getenv("NEWS_API_KEY", "")
+TMT_SECRET    = os.getenv("TMT_SECRET", "")
 LOGO_PATH     = os.getenv("LOGO_PATH", "assets/Circle_Logo.png")
 INDEXNOW_KEY  = os.getenv("INDEXNOW_KEY", "")
 UNSPLASH_KEY   = os.getenv("UNSPLASH_ACCESS_KEY", "")
-SEEN_URLS_FILE    = Path(__file__).resolve().parent / "seen_urls.json"
-PEXELS_SEEN_FILE  = Path(__file__).resolve().parent / "pexels_used_ids.json"
 
 AUTHOR_NAME    = "Sanjay Goyal"
 AUTHOR_URL     = "https://themobiletimes.com/author/sanjay/"
@@ -106,22 +104,34 @@ def save_seen_urls(new_urls: set):
 _used_unsplash_ids: set[str] = set()   # in-memory dedup for this run
 
 def load_pexels_ids() -> set:
-    """Load previously used Pexels photo IDs to avoid duplicate images."""
-    if PEXELS_SEEN_FILE.exists():
-        try:
-            return set(json.loads(PEXELS_SEEN_FILE.read_text(encoding="utf-8")).get("ids", []))
-        except Exception:
-            pass
+    """Load previously used Pexels photo IDs from WordPress state (persists across ephemeral runners)."""
+    try:
+        r = requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/state/get",
+            json={"secret": TMT_SECRET, "name": "pexels_used_ids"},
+            timeout=10,
+        )
+        if r.ok:
+            data = r.json().get("value") or {}
+            return set(data.get("ids", []))
+    except Exception:
+        pass
     return set()
 
 
 def save_pexels_id(photo_id: int):
-    """Record a Pexels photo ID as used, keeping last 1,000."""
+    """Persist a used Pexels photo ID to WordPress state, keeping last 1,000."""
     ids = load_pexels_ids()
     ids.add(photo_id)
-    PEXELS_SEEN_FILE.write_text(
-        json.dumps({"ids": list(ids)[-1000:]}, indent=2), encoding="utf-8"
-    )
+    try:
+        requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/state/set",
+            json={"secret": TMT_SECRET, "name": "pexels_used_ids",
+                  "value": {"ids": list(ids)[-1000:]}},
+            timeout=10,
+        )
+    except Exception:
+        pass
 
 # ─── Category & Tag IDs (fetched from WP audit) ──────────────────────────────
 
@@ -262,6 +272,22 @@ AUTHORITY_LINKS = [
     ("ITU",      "https://www.itu.int"),
     ("Ericsson", "https://www.ericsson.com/en/reports-and-papers"),
 ]
+
+# Category → Unsplash/Pexels search term for body images
+_CAT_TO_SEARCH: dict[str, str] = {
+    "5g-networks":        "5G network India",
+    "smartphones-tablets":"smartphone India",
+    "cybersecurity":      "cybersecurity data",
+    "ai-machine-learning":"artificial intelligence",
+    "policy-updates":     "India government policy",
+    "market-trends":      "India business market",
+    "industry-insights":  "telecom India industry",
+    "tech-innovation":    "technology innovation",
+    "ott-streaming":      "streaming video India",
+    "ev-smart-grids":     "electric vehicle India",
+    "internet-of-things": "IoT smart devices",
+    "software":           "software technology",
+}
 
 # Source credibility scores (0–100). Used to weight story selection.
 # Higher = more authoritative. Checked via case-insensitive substring of source name/URL.
@@ -1101,8 +1127,8 @@ def validate_and_fix(content: str, title: str) -> tuple[str, str, list[str]]:
 
     # 4. Hard-stop if article is very short (< 400 words) — don't publish stub articles
     word_count = len(re.findall(r"\b\w+\b", re.sub(r"<[^>]+>", " ", content)))
-    if word_count < 400:
-        raise ValueError(f"Article too short: {word_count} words (min 400). Aborting publish.")
+    if word_count < 500:
+        raise ValueError(f"Article too short: {word_count} words (min 500). Aborting publish.")
 
     # 5. Hard-stop if unfilled placeholders remain — means template wasn't filled properly
     if placeholders:
@@ -2009,17 +2035,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             img_alt, img_title=img_title
         )
 
-        # Body image: fetch a second Pexels image and inject into article body
-        # Use category-level search term — more likely to find results than the specific focus keyword
-        _cat_to_search = {
-            "5g-networks": "5G network India", "smartphones-tablets": "smartphone India",
-            "cybersecurity": "cybersecurity data", "ai-machine-learning": "artificial intelligence",
-            "policy-updates": "India government policy", "market-trends": "India business market",
-            "industry-insights": "telecom India industry", "tech-innovation": "technology innovation",
-            "ott-streaming": "streaming video India", "ev-smart-grids": "electric vehicle India",
-            "internet-of-things": "IoT smart devices", "software": "software technology",
-        }
-        body_search = _cat_to_search.get(post_data.get("category_slug", ""), "India telecom technology")
+        body_search = _CAT_TO_SEARCH.get(post_data.get("category_slug", ""), "India telecom technology")
         body_img_bytes = (
             fetch_unsplash_image(body_search, watermark=True) or
             fetch_pexels_image(body_search, watermark=True)
@@ -2043,7 +2059,9 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             log.info(f"  Slot {slot} published: {post_url}")
             ping_indexing(post_url)
             seed_post_views(result.get("id"))
-            save_seen_urls({story.get("url")} - {"", WP_URL, None})
+            url_to_save = story.get("url")
+            if url_to_save and url_to_save != WP_URL:
+                save_seen_urls({url_to_save})
             try:
                 from social_poster import post_to_all
                 post_to_all(post_data["title"], post_url, post_data["tags"],
@@ -2114,16 +2132,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         img_title = post_data["focus_keyword"]
         media_id, feat_img_url  = upload_image_to_wp(img_bytes, filename, alt_text, img_title=img_title)
 
-        # Body image injection — use category search for reliable Pexels results
-        _cat_to_search2 = {
-            "5g-networks": "5G network India", "smartphones-tablets": "smartphone India",
-            "cybersecurity": "cybersecurity data", "ai-machine-learning": "artificial intelligence",
-            "policy-updates": "India government policy", "market-trends": "India business market",
-            "industry-insights": "telecom India industry", "tech-innovation": "technology innovation",
-            "ott-streaming": "streaming video India", "ev-smart-grids": "electric vehicle India",
-            "internet-of-things": "IoT smart devices", "software": "software technology",
-        }
-        body_search2   = _cat_to_search2.get(post_data.get("category_slug", ""), "India telecom technology")
+        body_search2 = _CAT_TO_SEARCH.get(post_data.get("category_slug", ""), "India telecom technology")
         body_img_bytes = (
             fetch_unsplash_image(body_search2, watermark=True) or
             fetch_pexels_image(body_search2, watermark=True)
@@ -2345,7 +2354,7 @@ if __name__ == "__main__":
         log.info("Test mode — generating 1 full draft post (with category, tags, Rank Math meta)...")
         stories = fetch_all_stories()
         if stories:
-            selected = select_stories(stories, get_trending_keywords())
+            selected = select_stories(stories, get_trending_from_stories(stories))
             if selected:
                 story    = selected[0]
                 date_str = datetime.now(IST).isoformat()

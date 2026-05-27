@@ -137,23 +137,30 @@ def post_to_linkedin(title: str, url: str, tags: list, category: str = "") -> bo
         hashtags = build_hashtags(tags, category, max_tags=5)
         text     = f"{title}\n\n{hashtags}\n\n{url}"
         payload  = {
-            "author": f"urn:li:organization:{LINKEDIN_ORG_ID}",
-            "lifecycleState": "PUBLISHED",
-            "specificContent": {
-                "com.linkedin.ugc.ShareContent": {
-                    "shareCommentary":    {"text": text},
-                    "shareMediaCategory": "ARTICLE",
-                    "media": [{"status": "READY", "originalUrl": url,
-                               "title": {"text": title[:200]}}],
+            "author":         f"urn:li:organization:{LINKEDIN_ORG_ID}",
+            "commentary":     text,
+            "visibility":     "PUBLIC",
+            "distribution":   {
+                "feedDistribution":             "MAIN_FEED",
+                "targetEntities":               [],
+                "thirdPartyDistributionChannels": [],
+            },
+            "content": {
+                "article": {
+                    "source":      url,
+                    "title":       title[:256],
+                    "description": text[:700],
                 }
             },
-            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
+            "lifecycleState":          "PUBLISHED",
+            "isReshareDisabledByAuthor": False,
         }
         r = requests.post(
-            "https://api.linkedin.com/v2/ugcPosts",
-            headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}",
-                     "Content-Type": "application/json",
-                     "X-Restli-Protocol-Version": "2.0.0"},
+            "https://api.linkedin.com/v2/posts",
+            headers={"Authorization":              f"Bearer {LINKEDIN_ACCESS_TOKEN}",
+                     "Content-Type":               "application/json",
+                     "LinkedIn-Version":           "202505",
+                     "X-Restli-Protocol-Version":  "2.0.0"},
             json=payload, timeout=15,
         )
         if r.ok:
