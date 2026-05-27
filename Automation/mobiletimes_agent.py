@@ -1895,6 +1895,21 @@ def seed_post_views(post_id: int):
         log.warning(f"Views seed failed: {e}")
 
 
+def _increment_auto_count():
+    """Increment the shared daily automated post counter in WP state."""
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+    key   = f"auto_posts_{today}"
+    try:
+        r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
+                         json={"secret": TMT_SECRET, "name": key}, timeout=10)
+        n = int(r.json().get("value") or 0) if r.ok else 0
+        requests.post(f"{WP_URL}/wp-json/tmt/v1/state/set",
+                     json={"secret": TMT_SECRET, "name": key, "value": n + 1}, timeout=10)
+        log.info(f"  Daily auto count: {n + 1}/5")
+    except Exception:
+        pass
+
+
 def ping_indexing(post_url: str):
     try:
         if INDEXNOW_KEY:
@@ -1982,6 +1997,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
                 log.info(f"  Slot 5 published: {post_url}")
                 ping_indexing(post_url)
                 seed_post_views(result.get("id"))
+                _increment_auto_count()
                 save_seen_urls(set())
                 try:
                     from social_poster import post_to_all
@@ -2059,6 +2075,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             log.info(f"  Slot {slot} published: {post_url}")
             ping_indexing(post_url)
             seed_post_views(result.get("id"))
+            _increment_auto_count()
             url_to_save = story.get("url")
             if url_to_save and url_to_save != WP_URL:
                 save_seen_urls({url_to_save})
@@ -2156,6 +2173,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             log.info(f"  {'Scheduled' if scheduled else 'Published'} [{POST_TIMES_IST[i]} IST]: {post_url}")
             ping_indexing(post_url)
             seed_post_views(result.get("id"))
+            _increment_auto_count()
             published.append({
                 "type":     post_type,
                 "title":    post_data["title"],
@@ -2218,6 +2236,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         log.info(f"  Blog {'scheduled' if scheduled else 'published'} [{POST_TIMES_IST[4]} IST]: {blog_url}")
         ping_indexing(blog_url)
         seed_post_views(blog_result.get("id"))
+        _increment_auto_count()
         published.append({
             "type":     "blog",
             "title":    blog_data["title"],

@@ -60,7 +60,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("tmt.breaking")
 
-MAX_BREAKING_PER_DAY = 3
+MAX_BREAKING_PER_DAY = 3   # hard cap on breaking-only posts regardless of daily total
+DAILY_POST_LIMIT     = 5   # combined automated posts per day (daily + breaking)
 POLL_INTERVAL_MIN    = 17          # minutes between polls
 SCORE_THRESHOLD      = 45          # 0-100; only publish if story scores above this
 
@@ -790,6 +791,34 @@ def seed_post_views(post_id: int):
         log.warning(f"Views seed failed: {e}")
 
 
+def _get_auto_posts_today() -> int:
+    """Automated posts (daily + breaking) published today, from shared WP state counter."""
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+    try:
+        r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
+                         json={"secret": TMT_SECRET, "name": f"auto_posts_{today}"}, timeout=10)
+        if r.ok:
+            return int(r.json().get("value") or 0)
+    except Exception:
+        pass
+    return 0
+
+
+def _increment_auto_count():
+    """Increment the shared daily automated post counter in WP state."""
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+    key   = f"auto_posts_{today}"
+    try:
+        r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
+                         json={"secret": TMT_SECRET, "name": key}, timeout=10)
+        n = int(r.json().get("value") or 0) if r.ok else 0
+        requests.post(f"{WP_URL}/wp-json/tmt/v1/state/set",
+                     json={"secret": TMT_SECRET, "name": key, "value": n + 1}, timeout=10)
+        log.info(f"  Daily auto count: {n + 1}/{DAILY_POST_LIMIT}")
+    except Exception:
+        pass
+
+
 def ping_indexing(post_url: str):
     try:
         if INDEXNOW_KEY:
@@ -817,9 +846,16 @@ def run_scan():
     now_ist  = datetime.now(IST)
     date_str = now_ist.isoformat()
 
+    # Breaking-only cap (secondary guard)
     count_today = get_today_count()
     if count_today >= MAX_BREAKING_PER_DAY:
-        log.info(f"Daily cap reached ({count_today}/{MAX_BREAKING_PER_DAY}) — skipping scan")
+        log.info(f"Breaking cap reached ({count_today}/{MAX_BREAKING_PER_DAY}) — skipping scan")
+        return
+
+    # Combined daily cap: daily automated + breaking news must not exceed 5
+    auto_today = _get_auto_posts_today()
+    if auto_today >= DAILY_POST_LIMIT:
+        log.info(f"Daily post limit reached ({auto_today}/{DAILY_POST_LIMIT} total today) — skipping breaking news")
         return
 
     stories = fetch_all_breaking_stories()
@@ -863,6 +899,7 @@ def run_scan():
         log.info(f"  BREAKING PUBLISHED: {post_url}")
         mark_published(best["title"])
         seed_post_views(result.get("id"))
+        _increment_auto_count()
         ping_indexing(post_url)
 
         try:
