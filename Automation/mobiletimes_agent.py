@@ -2346,7 +2346,15 @@ if __name__ == "__main__":
         media_id, _ = upload_image_to_wp(img, f"{single_kw_fn}.jpg", post_data["focus_keyword"])
         result   = publish_post(post_data, media_id, sticky=False)
         if result:
-            log.info(f"  Published: {result.get('url', result.get('link', ''))}")
+            post_url = result.get("url", result.get("link", ""))
+            log.info(f"  Published: {post_url}")
+            ping_indexing(post_url)
+            seed_post_views(result.get("id"))
+            try:
+                from social_poster import post_to_all
+                post_to_all(post_data["title"], post_url, post_data["tags"], category=post_data["category_slug"])
+            except Exception as e:
+                log.warning(f"Social posting failed: {e}")
         else:
             log.error("  Publish failed")
 
