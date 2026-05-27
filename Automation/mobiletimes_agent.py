@@ -103,6 +103,8 @@ def save_seen_urls(new_urls: set):
         log.warning(f"save_seen_urls failed: {e}")
 
 
+_used_unsplash_ids: set[str] = set()   # in-memory dedup for this run
+
 def load_pexels_ids() -> set:
     """Load previously used Pexels photo IDs to avoid duplicate images."""
     if PEXELS_SEEN_FILE.exists():
@@ -443,6 +445,7 @@ def fetch_fal_image(topic: str) -> bytes | None:
 
 def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
     """Search Unsplash for free-to-use images (Unsplash License — commercial use allowed, no attribution required)."""
+    global _used_unsplash_ids
     if not UNSPLASH_KEY:
         return None
     try:
@@ -452,8 +455,9 @@ def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
             params={
                 "query":          query,
                 "orientation":    "landscape",
-                "per_page":       5,
+                "per_page":       10,
                 "content_filter": "high",
+                "page":           random.randint(1, 5),
             },
             timeout=15,
         )
@@ -461,7 +465,10 @@ def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
         results = r.json().get("results", [])
         if not results:
             return None
-        for photo in results[:3]:
+        fresh = [p for p in results if p["id"] not in _used_unsplash_ids]
+        candidates = fresh[:6] if fresh else results[:6]
+        random.shuffle(candidates)
+        for photo in candidates:
             img_url = photo["urls"]["regular"]
             try:
                 img_r = requests.get(img_url, timeout=20)
@@ -475,6 +482,7 @@ def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
                     img = add_watermark(img)
                 buf = io.BytesIO()
                 img.save(buf, "JPEG", quality=90)
+                _used_unsplash_ids.add(photo["id"])
                 log.info(f"  Unsplash image: {photo.get('id','')} by {photo.get('user',{}).get('name','')}")
                 return buf.getvalue()
             except Exception:

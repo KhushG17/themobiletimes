@@ -62,7 +62,7 @@ log = logging.getLogger("tmt.breaking")
 
 MAX_BREAKING_PER_DAY = 3
 POLL_INTERVAL_MIN    = 17          # minutes between polls
-SCORE_THRESHOLD      = 65          # 0-100; only publish if story scores above this
+SCORE_THRESHOLD      = 45          # 0-100; only publish if story scores above this
 SEEN_FILE            = Path(__file__).resolve().parent / "breaking_seen.json"
 
 BREAKING_CATEGORY_IDS = {
@@ -193,33 +193,6 @@ def already_seen(title: str) -> bool:
     return _story_hash(title) in data.get("published", [])
 
 
-def already_published_on_wp(title: str) -> bool:
-    """Check WP REST API for a similar post in the last 24h — stateless dedup for GitHub Actions."""
-    try:
-        r = requests.get(
-            f"{WP_URL}/wp-json/wp/v2/posts",
-            headers={"Authorization": f"Basic {creds}"},
-            params={"per_page": 20, "status": "publish", "_fields": "title"},
-            timeout=10,
-        )
-        if not r.ok:
-            return False
-        STOPWORDS = {"the", "and", "for", "with", "from", "that", "this", "are",
-                     "was", "has", "its", "have", "will", "india", "2026"}
-        title_words = set(re.findall(r"\b\w{3,}\b", title.lower())) - STOPWORDS
-        for post in r.json():
-            pub_title = re.sub(r"<[^>]+>", "", post["title"]["rendered"]).lower()
-            pub_words = set(re.findall(r"\b\w{3,}\b", pub_title)) - STOPWORDS
-            if not pub_words:
-                continue
-            overlap = len(title_words & pub_words) / max(len(title_words), 1)
-            if overlap >= 0.4:
-                log.info(f"  WP dedup: skipping '{title[:55]}' ({overlap:.0%} overlap with recent post)")
-                return True
-        return False
-    except Exception as e:
-        log.debug(f"WP dedup check failed: {e}")
-        return False
 
 
 # ─── Image helpers (copied from main agent) ──────────────────────────────────
@@ -297,8 +270,9 @@ def fetch_unsplash_image(query: str) -> bytes | None:
             params={
                 "query":          query,
                 "orientation":    "landscape",
-                "per_page":       5,
+                "per_page":       10,
                 "content_filter": "high",
+                "page":           random.randint(1, 5),
             },
             timeout=15,
         )
@@ -306,7 +280,9 @@ def fetch_unsplash_image(query: str) -> bytes | None:
         results = r.json().get("results", [])
         if not results:
             return None
-        for photo in results[:3]:
+        candidates = list(results[:6])
+        random.shuffle(candidates)
+        for photo in candidates:
             img_url = photo["urls"]["regular"]
             try:
                 img_r = requests.get(img_url, timeout=20)
@@ -404,9 +380,43 @@ def upload_image_to_wp(img_bytes: bytes, filename: str, alt: str,
 
 # ─── RSS Polling ──────────────────────────────────────────────────────────────
 
+def _fetch_recent_wp_titles() -> list[str]:
+    """Fetch titles of posts published in the last 24h — cached once per poll."""
+    try:
+        after = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%S")
+        r = requests.get(
+            f"{WP_URL}/wp-json/wp/v2/posts",
+            headers={"Authorization": f"Basic {creds}"},
+            params={"per_page": 20, "status": "publish", "_fields": "title", "after": after},
+            timeout=10,
+        )
+        if r.ok:
+            return [re.sub(r"<[^>]+>", "", p["title"]["rendered"]).lower() for p in r.json()]
+    except Exception:
+        pass
+    return []
+
+def _title_overlaps(title: str, recent_titles: list[str], threshold: float = 0.6) -> bool:
+    STOPWORDS = {"the", "and", "for", "with", "from", "that", "this", "are",
+                 "was", "has", "its", "have", "will", "india", "2026"}
+    title_words = set(re.findall(r"\b\w{3,}\b", title.lower())) - STOPWORDS
+    for pub_title in recent_titles:
+        pub_words = set(re.findall(r"\b\w{3,}\b", pub_title)) - STOPWORDS
+        if not pub_words:
+            continue
+        overlap = len(title_words & pub_words) / max(len(title_words), 1)
+        if overlap >= threshold:
+            log.info(f"  WP dedup: skipping '{title[:55]}' ({overlap:.0%} overlap with recent post)")
+            return True
+    return False
+
 def poll_rss() -> list[dict]:
     stories = []
     seen_hashes = set()
+    # Load state and recent WP posts ONCE for the whole poll (not per-story)
+    seen_data = _load_seen()
+    seen_published = set(seen_data.get("published", []))
+    recent_wp_titles = _fetch_recent_wp_titles()
     for url in RSS_FEEDS:
         try:
             feed = feedparser.parse(url)
@@ -417,7 +427,9 @@ def poll_rss() -> list[dict]:
                 if not title or not link:
                     continue
                 h = _story_hash(title)
-                if h in seen_hashes or already_seen(title) or already_published_on_wp(title):
+                if h in seen_hashes or h in seen_published:
+                    continue
+                if _title_overlaps(title, recent_wp_titles):
                     continue
                 seen_hashes.add(h)
                 summary = re.sub(r"<[^>]+>", " ", summary)[:600].strip()
