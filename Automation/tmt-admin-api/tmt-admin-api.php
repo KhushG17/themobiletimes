@@ -40,8 +40,9 @@ add_action( 'wp_head', function () {
 }, 20 );
 
 /* ─── Secret key ──────────────────────────────────────────────────────────── */
-// Override in wp-config.php:  define( 'TMT_API_SECRET', 'your-strong-key-here' );
-define( 'TMT_KEY', defined( 'TMT_API_SECRET' ) ? TMT_API_SECRET : 'TMT2026xK9mSEO' );
+// Required in wp-config.php:  define( 'TMT_API_SECRET', 'your-strong-key-here' );
+// If not set, all API calls return 403 — no fallback default.
+define( 'TMT_KEY', defined( 'TMT_API_SECRET' ) ? TMT_API_SECRET : '' );
 
 /* ─── Logger ──────────────────────────────────────────────────────────────── */
 function tmt_log( string $msg ): void {
@@ -127,7 +128,8 @@ add_action( 'rest_api_init', function () {
 
 /* ─── Auth helper ─────────────────────────────────────────────────────────── */
 function tmt_auth( WP_REST_Request $req ): bool {
-    return $req->get_param( 'secret' ) === TMT_KEY;
+    // Reject if TMT_API_SECRET is not configured in wp-config.php
+    return TMT_KEY !== '' && $req->get_param( 'secret' ) === TMT_KEY;
 }
 function tmt_no()       { return new WP_Error( 'forbidden',   'Invalid secret.',             [ 'status' => 403 ] ); }
 function tmt_bad( $m )  { return new WP_Error( 'bad_request', (string) $m,                   [ 'status' => 400 ] ); }
