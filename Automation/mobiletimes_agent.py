@@ -46,6 +46,11 @@ TMT_SECRET    = os.getenv("TMT_SECRET", "")
 LOGO_PATH     = os.getenv("LOGO_PATH", "assets/Circle_Logo.png")
 INDEXNOW_KEY  = os.getenv("INDEXNOW_KEY", "")
 UNSPLASH_KEY   = os.getenv("UNSPLASH_ACCESS_KEY", "")
+OPENAI_KEY     = os.getenv("OPENAI_API_KEY", "")
+
+# ── DALL-E 3 activation flag ──────────────────────────────────────────────────
+# Set to True when OpenAI API key is funded and ready. Currently OFF.
+OPENAI_IMAGES_ACTIVE = False
 
 AUTHOR_NAME    = "Sanjay Goyal"
 AUTHOR_URL     = "https://themobiletimes.com/author/sanjay/"
@@ -591,6 +596,71 @@ def fetch_fal_image(topic: str) -> bytes | None:
         log.warning(f"fal.ai fetch failed: {e}")
         return None
 
+def build_dalle_prompt(title: str, category: str, focus_keyword: str, summary: str = "") -> str:
+    """Use Claude Haiku to build a specific, story-driven DALL-E 3 prompt."""
+    prompt = f"""You are an expert at writing prompts for DALL-E 3 to generate editorial news photography.
+
+Article: {title}
+Category: {category}
+Focus keyword: {focus_keyword}
+Summary: {summary[:200] if summary else ""}
+
+Write a DALL-E 3 prompt that generates a photorealistic, high-quality editorial news photograph for this article.
+
+Rules:
+- Be specific to the actual story (show devices, buildings, equipment, professionals, cityscapes — whatever is relevant)
+- India context where relevant (Indian urban setting, Indian professionals, etc.)
+- Style: professional DSLR editorial photography, clean composition, natural or soft studio lighting
+- Absolutely NO text, NO logos, NO watermarks, NO UI elements in the image
+- NOT generic — if it's about 5G, show actual towers or network equipment. If smartphones, show specific devices. If policy, show government/office setting.
+- 1-2 sentences only.
+
+Respond with ONLY the image prompt, nothing else."""
+
+    try:
+        resp = anthropic_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=120,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return resp.content[0].text.strip().strip('"')
+    except Exception:
+        return f"Professional editorial news photograph, India technology context, {focus_keyword}, DSLR quality, no text, no logos"
+
+
+def fetch_openai_image(title: str, category: str, focus_keyword: str, summary: str = "") -> bytes | None:
+    """Generate a custom editorial featured image using DALL-E 3.
+    INACTIVE until OPENAI_IMAGES_ACTIVE = True and OPENAI_KEY is funded."""
+    if not OPENAI_IMAGES_ACTIVE or not OPENAI_KEY:
+        return None
+    try:
+        import openai
+        client = openai.OpenAI(api_key=OPENAI_KEY)
+        dalle_prompt = build_dalle_prompt(title, category, focus_keyword, summary)
+        log.info(f"  DALL-E 3 prompt: {dalle_prompt[:90]}...")
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=dalle_prompt,
+            size="1792x1024",
+            quality="standard",
+            n=1,
+        )
+        img_url = response.data[0].url
+        img_r = requests.get(img_url, timeout=30)
+        if not img_r.ok or len(img_r.content) < 10_000:
+            return None
+        img = Image.open(io.BytesIO(img_r.content)).convert("RGB")
+        img = resize_image(img)
+        img = add_watermark(img)
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=92)
+        log.info(f"  DALL-E 3 image generated: {focus_keyword}")
+        return buf.getvalue()
+    except Exception as e:
+        log.warning(f"DALL-E 3 failed: {e}")
+        return None
+
+
 def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
     """Search Unsplash for free-to-use images (Unsplash License — commercial use allowed, no attribution required)."""
     if not UNSPLASH_KEY:
@@ -683,12 +753,16 @@ def fetch_article_from_url(url: str) -> dict | None:
 
 
 def extract_source_image(url: str, direct_img_url: str = "") -> bytes | None:
-    """Download the OG image from a story.
-    If direct_img_url is provided (e.g. from News API), use it directly instead of scraping."""
+    """Download the OG/featured image from a source article.
+    Rejects images smaller than 800×450 to avoid blurry upscaled results.
+    Falls back to next source in the chain if image quality is insufficient."""
     if not url and not direct_img_url:
         return None
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0; +https://themobiletimes.com)"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0; +https://themobiletimes.com)",
+            "Accept":     "image/webp,image/jpeg,image/png,*/*",
+        }
         img_url = direct_img_url
 
         if not img_url:
@@ -706,15 +780,23 @@ def extract_source_image(url: str, direct_img_url: str = "") -> bytes | None:
 
         if not img_url:
             return None
+
         img_r = requests.get(img_url, headers=headers, timeout=15)
-        if not img_r.ok or len(img_r.content) < 5000:
+        if not img_r.ok or len(img_r.content) < 15_000:
             return None
+
         img = Image.open(io.BytesIO(img_r.content)).convert("RGB")
+
+        # Reject low-resolution source images — upscaling small images looks terrible
+        if img.width < 800 or img.height < 450:
+            log.info(f"  Source image too small ({img.width}×{img.height}) — falling back to stock")
+            return None
+
         img = resize_image(img)
         img = add_watermark(img)
         buf = io.BytesIO()
-        img.save(buf, "JPEG", quality=88)
-        log.info(f"  Source image from {'direct URL' if direct_img_url else url[:60]}")
+        img.save(buf, "JPEG", quality=92)
+        log.info(f"  Source image ({img.width if hasattr(img,'width') else '?'}px): {'direct' if direct_img_url else url[:55]}")
         return buf.getvalue()
     except Exception as e:
         log.warning(f"Source image extraction failed ({url[:50]}): {e}")
@@ -2375,6 +2457,8 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             return
 
         img_bytes = (
+            fetch_openai_image(post_data["title"], post_data["category_slug"], post_data["focus_keyword"], story.get("summary", "")) or
+            extract_source_image(story.get("url", ""), story.get("_og_image", "")) or
             fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
@@ -2487,6 +2571,8 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
         img_bytes = (
             extract_source_image(story.get("url", "")) or
+            fetch_openai_image(post_data["title"], post_data["category_slug"], post_data["focus_keyword"], story.get("summary", "")) or
+            extract_source_image(story.get("url", ""), story.get("_og_image", "")) or
             fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
@@ -2627,6 +2713,8 @@ if __name__ == "__main__":
         today_str = datetime.now(IST).strftime("%Y-%m-%d")
         url_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
         img = (
+            fetch_openai_image(post_data["title"], post_data["category_slug"], post_data["focus_keyword"], story.get("summary", "")) or
+            extract_source_image(story.get("url", ""), story.get("_og_image", "")) or
             fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
@@ -2831,7 +2919,11 @@ if __name__ == "__main__":
                 log.info(f"  Title: {post_data['title'][:60]}")
                 log.info(f"  Category: {post_data['category_slug']}  Tags: {post_data['tags']}")
                 log.info(f"  Focus keyword: {post_data['focus_keyword']}")
-                img      = fetch_unsplash_image(post_data["focus_keyword"]) or fetch_pexels_image(post_data["focus_keyword"]) or make_fallback_image(story["title"])
+                img      = (fetch_openai_image(post_data["title"], post_data["category_slug"], post_data["focus_keyword"]) or
+                            extract_source_image(story.get("url", "")) or
+                            fetch_unsplash_image(post_data["focus_keyword"]) or
+                            fetch_pexels_image(post_data["focus_keyword"]) or
+                            make_fallback_image(story["title"]))
                 test_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
                 media_id, _ = upload_image_to_wp(img, f"{test_kw_fn}-test.jpg", post_data["focus_keyword"])
                 result   = publish_post(post_data, media_id, sticky=False, draft=True)

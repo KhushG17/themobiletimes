@@ -70,6 +70,7 @@ jobs:
           TMT_SECRET:           ${{ secrets.TMT_SECRET }}
           UNSPLASH_ACCESS_KEY:  ${{ secrets.UNSPLASH_ACCESS_KEY }}
           INDEXNOW_KEY:         ${{ secrets.INDEXNOW_KEY }}
+          OPENAI_API_KEY:       ${{ secrets.OPENAI_API_KEY }}
           LOGO_PATH:            assets/Circle_Logo.png
         run: python mobiletimes_agent.py --blog ${{ steps.sub.outputs.cat }}
 

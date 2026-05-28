@@ -37,6 +37,10 @@ TMT_SECRET     = os.getenv("TMT_SECRET", "")
 LOGO_PATH      = os.getenv("LOGO_PATH", "assets/Circle_Logo.png")
 INDEXNOW_KEY   = os.getenv("INDEXNOW_KEY", "")
 UNSPLASH_KEY   = os.getenv("UNSPLASH_ACCESS_KEY", "")
+OPENAI_KEY     = os.getenv("OPENAI_API_KEY", "")
+
+# DALL-E 3 activation flag — set to True when OpenAI API key is funded
+OPENAI_IMAGES_ACTIVE = False
 
 IST           = pytz.timezone("Asia/Kolkata")
 creds         = base64.b64encode(f"{WP_USER}:{WP_PASS}".encode()).decode()
@@ -313,12 +317,15 @@ def fetch_unsplash_image(query: str) -> bytes | None:
 
 
 def extract_source_image(url: str, direct_img_url: str = "") -> bytes | None:
-    """Download the OG image from a story.
-    If direct_img_url is provided (e.g. from News API), use it directly instead of scraping."""
+    """Download the OG/featured image from a source article.
+    Rejects images smaller than 800×450 to avoid blurry upscaled results."""
     if not url and not direct_img_url:
         return None
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0)"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0; +https://themobiletimes.com)",
+            "Accept":     "image/webp,image/jpeg,image/png,*/*",
+        }
         img_url = direct_img_url
         if not img_url:
             from bs4 import BeautifulSoup
@@ -335,17 +342,49 @@ def extract_source_image(url: str, direct_img_url: str = "") -> bytes | None:
         if not img_url:
             return None
         img_r = requests.get(img_url, headers=headers, timeout=15)
-        if not img_r.ok or len(img_r.content) < 5000:
+        if not img_r.ok or len(img_r.content) < 15_000:
+            return None
+        img = Image.open(io.BytesIO(img_r.content)).convert("RGB")
+        if img.width < 800 or img.height < 450:
+            log.info(f"  Source image too small ({img.width}×{img.height}) — falling back to stock")
+            return None
+        img = resize_image(img)
+        img = add_watermark(img)
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=92)
+        log.info(f"  Source image: {'direct' if direct_img_url else url[:55]}")
+        return buf.getvalue()
+    except Exception as e:
+        log.warning(f"Source image extraction failed: {e}")
+        return None
+
+
+def fetch_openai_image_breaking(focus_keyword: str, title: str) -> bytes | None:
+    """DALL-E 3 image for breaking news. INACTIVE until OPENAI_IMAGES_ACTIVE = True."""
+    if not OPENAI_IMAGES_ACTIVE or not OPENAI_KEY:
+        return None
+    try:
+        import openai
+        client = openai.OpenAI(api_key=OPENAI_KEY)
+        prompt = (
+            f"Professional editorial news photography, breaking news context, "
+            f"{focus_keyword}, India technology setting, photorealistic DSLR quality, "
+            f"clean composition, no text, no logos, no watermarks"
+        )
+        response = client.images.generate(model="dall-e-3", prompt=prompt,
+                                          size="1792x1024", quality="standard", n=1)
+        img_r = requests.get(response.data[0].url, timeout=30)
+        if not img_r.ok:
             return None
         img = Image.open(io.BytesIO(img_r.content)).convert("RGB")
         img = resize_image(img)
         img = add_watermark(img)
         buf = io.BytesIO()
-        img.save(buf, "JPEG", quality=88)
-        log.info(f"  Source image from {'direct URL' if direct_img_url else url[:60]}")
+        img.save(buf, "JPEG", quality=92)
+        log.info(f"  DALL-E 3 image generated: {focus_keyword}")
         return buf.getvalue()
     except Exception as e:
-        log.warning(f"Source image extraction failed: {e}")
+        log.warning(f"DALL-E 3 failed: {e}")
         return None
 
 def make_fallback_image(title: str) -> bytes:
@@ -1053,6 +1092,8 @@ def run_scan():
     log.info(f"  Category: {post_data['category_slug']}  KW: {post_data['focus_keyword']}")
 
     img_bytes = (
+        fetch_openai_image_breaking(post_data["focus_keyword"], post_data["title"]) or
+        extract_source_image(best.get("url", ""), best.get("_og_image", "")) or
         fetch_unsplash_image(post_data["focus_keyword"]) or
         fetch_pexels_image(post_data["focus_keyword"]) or
         make_fallback_image(best["title"])

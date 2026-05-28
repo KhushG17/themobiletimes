@@ -44,6 +44,7 @@ jobs:
           NEWS_API_KEY:         ${{ secrets.NEWS_API_KEY }}
           TMT_SECRET:           ${{ secrets.TMT_SECRET }}
           INDEXNOW_KEY:         ${{ secrets.INDEXNOW_KEY }}
+          OPENAI_API_KEY:       ${{ secrets.OPENAI_API_KEY }}
           LOGO_PATH:            assets/Circle_Logo.png
         run: python breaking_monitor.py --once
 
