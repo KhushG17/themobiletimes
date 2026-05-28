@@ -2213,6 +2213,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.url:
+        _recent_posts_cache = get_recent_posts()
         source_url = args.url
         log.info(f"URL rewrite mode — source: {source_url}")
         story = fetch_article_from_url(source_url)
@@ -2253,6 +2254,7 @@ if __name__ == "__main__":
             log.error("  Publish failed")
 
     elif args.single:
+        _recent_posts_cache = get_recent_posts()
         topic    = args.single
         date_str = datetime.now(IST).isoformat()
         log.info(f"Single post mode — topic: {topic}")
@@ -2296,6 +2298,9 @@ if __name__ == "__main__":
         log.info(f"Weekly blog mode — subcategory: {subcategory}")
         date_str = datetime.now(IST).isoformat()
         today_str = datetime.now(IST).strftime("%Y-%m-%d")
+
+        # Populate recent posts cache so inject_related_links() works
+        _recent_posts_cache = get_recent_posts()
 
         # Fetch current stories so the AI picks a timely, relevant topic
         stories = fetch_all_stories()
