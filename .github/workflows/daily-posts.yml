@@ -3,14 +3,13 @@ name: Daily Posts
 on:
   schedule:
     - cron: '30 2 * * *'    # Slot 1 — 08:00 IST
-    - cron: '30 4 * * *'    # Slot 2 — 10:00 IST
-    - cron: '30 6 * * *'    # Slot 3 — 12:00 IST
-    - cron: '30 9 * * *'    # Slot 4 — 15:00 IST
-    - cron: '30 12 * * *'   # Slot 5 — 18:00 IST (Blog / Insights)
+    - cron: '30 6 * * *'    # Slot 2 — 12:00 IST
+    - cron: '30 10 * * *'   # Slot 3 — 16:00 IST
+    - cron: '30 14 * * *'   # Slot 4 — 20:00 IST
   workflow_dispatch:
     inputs:
       slot:
-        description: 'Slot to run (1–5). Leave blank to run all 5 at once.'
+        description: 'Slot to run (1–4). Leave blank to run all 4 at once.'
         required: false
         type: string
 
@@ -41,14 +40,12 @@ jobs:
             echo "num=${{ github.event.inputs.slot }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event.schedule }}" = "30 2 * * *" ]; then
             echo "num=1" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.schedule }}" = "30 4 * * *" ]; then
-            echo "num=2" >> $GITHUB_OUTPUT
           elif [ "${{ github.event.schedule }}" = "30 6 * * *" ]; then
+            echo "num=2" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "30 10 * * *" ]; then
             echo "num=3" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.schedule }}" = "30 9 * * *" ]; then
+          elif [ "${{ github.event.schedule }}" = "30 14 * * *" ]; then
             echo "num=4" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.schedule }}" = "30 12 * * *" ]; then
-            echo "num=5" >> $GITHUB_OUTPUT
           else
             echo "num=" >> $GITHUB_OUTPUT
           fi

@@ -4,7 +4,7 @@
 **Owner:** Sanjay Goyal, Editor-in-Chief  
 **Goal:** 15,000–50,000 monthly visitors by December 2026  
 **Budget:** ₹2,000/month all-in  
-**Last updated:** May 28, 2026 — Phase 1 live ✅ Applied to Google News ✅
+**Last updated:** May 28, 2026 — Phase 1 live ✅ Applied to Google News ✅ Weekly Insights live ✅
 
 ---
 
@@ -14,7 +14,9 @@ This system runs themobiletimes.com automatically — no human needs to touch it
 
 **Every single day, without you doing anything:**
 
-- At 5 specific times (8am, 10am, 12pm, 3pm, 6pm IST), GitHub's free servers wake up, scan Indian telecom news from **35+ RSS feeds + News API** (150,000 sources), Claude AI picks the most relevant story from all available categories, writes a 500–1,000 word article, finds a matching image (Unsplash first → Pexels → AI-generated → fallback), watermarks it with the TMT logo, and publishes it to WordPress.
+- At 4 specific times (8am, 12pm, 4pm, 8pm IST), GitHub's free servers wake up, scan Indian telecom news from **35+ RSS feeds + News API** (150,000 sources), Claude AI picks the most relevant story from all available categories, writes a 500–750 word article, finds a matching image (Unsplash first → Pexels → AI-generated → fallback), watermarks it with the TMT logo, and publishes it to WordPress.
+
+- 3 times a week (Mon, Wed, Fri), a separate workflow publishes a long-form Insights blog post (900–1,000 words) with 2 body images. Claude AI reads the current week's news and picks the most timely topic. Monday = Industry Insights full week recap, Wednesday = Case Study on what people are researching, Friday = How-to Guide (e.g. "How to Port Your Number"). These are completely separate from the daily news posts and not counted in the daily limit.
 
 - 16 times a day (roughly every 1.5 hours), a separate check scans for truly breaking news. If a high-scoring story is found and fewer than 5 total posts were already published today, it publishes immediately as a breaking news article.
 
@@ -27,14 +29,13 @@ Go to GitHub → Actions → "Post Manual Story" → type a topic or paste a URL
 
 ## How It Works — The Full Flow
 
-### Regular Posts (5 per day)
+### Daily News Posts (4 per day)
 
 ```
-08:00 IST  →  Slot 1  (news)
-10:00 IST  →  Slot 2  (news)
-12:00 IST  →  Slot 3  (news)
-15:00 IST  →  Slot 4  (news)
-18:00 IST  →  Slot 5  (Blog / Insights — rotates weekly topic)
+08:00 IST  →  Slot 1
+12:00 IST  →  Slot 2
+16:00 IST  →  Slot 3
+20:00 IST  →  Slot 4
 ```
 
 Each slot runs independently:
@@ -46,11 +47,9 @@ GitHub wakes up at scheduled time
 2.  Fetch stories: News API first → 35+ RSS feeds as supplement
 3.  Remove stories already published (URL history + word overlap + semantic dedup)
 4.  Claude Haiku: pick best story from ALL categories dynamically
-    Slot 5 only: generate blog on this week's Insights topic
   ↓
-5.  Claude Sonnet: write full article (500–1,000 words)
-      - 6 news templates: Breaking / Analysis / Investor / Deep Dive / Product / Comparison
-      - 4 blog templates: Opinion / India-vs-World / Editorial / Explainer
+5.  Claude Sonnet: write news article (500–750 words)
+      - 6 templates: Breaking / Analysis / Investor / Deep Dive / Product / Comparison
       - Auto-injects internal links to TMT category pages
       - Auto-injects 2 authority links (TRAI, GSMA, COAI, DOT)
       - Adds "Related Reading" block from recent TMT posts
@@ -61,19 +60,42 @@ GitHub wakes up at scheduled time
       - Articles under 500 words
       - Wrong years auto-corrected (2020–2025 → 2026)
 7.  Image pipeline:
-      Unsplash (primary) → Pexels (fallback) → fal.ai AI image → text fallback
+      Unsplash (primary) → Pexels (fallback) → fal.ai → text fallback
       → Resize to 1200×628 → Watermark (9% width, 80% opacity) → Upload to WP
-      Featured image:  no watermark (clean hero image)
-      Body image:      watermarked, injected between article sections
+      Featured image: clean hero, no watermark
+      Body image:     watermarked, injected between sections
 8.  Publish via WP REST API
 9.  Save Rank Math SEO meta (title, description, focus keyword, OG tags)
 10. Seed random view count (300–2000) via Light Views Counter
-11. Increment daily automated post counter in WP state
+11. Increment combined daily counter in WP state
 12. Flush WP Super Cache, Autoptimize, Rank Math sitemap
 13. Ping IndexNow → instant Bing/Yandex indexing
 14. Ping Google sitemap
 15. Post to Telegram, Twitter, LinkedIn, Facebook (if credentials set — Phase 2)
 16. Save story URL to dedup history
+```
+
+### Weekly Insights Blogs (3 per week — separate from daily limit)
+
+```
+Monday    08:30 IST  →  Industry Insights  (full week recap)
+Wednesday 08:30 IST  →  Case Studies       (what users research)
+Friday    08:30 IST  →  How-to Guides      (e.g. "How to Port Your Number")
+```
+
+```
+GitHub wakes up on scheduled day
+  ↓
+1.  Fetch current news headlines from RSS + News API
+2.  Claude Haiku reads the week's news and picks the most relevant topic
+    for the subcategory — topic is always timely, never from a fixed list
+3.  Claude Sonnet writes long-form blog post (900–1,000 words)
+      - 4 blog templates: Opinion / India-vs-World / Editorial / Explainer
+      - FAQs, expert quotes, deeper analysis than news posts
+4.  2 body images (different visual themes) uploaded and injected
+    giving a magazine-style layout throughout the article
+5.  Publish, seed views, flush cache, IndexNow, social post
+    ← does NOT increment the daily counter (separate system)
 ```
 
 ### Breaking News (16 checks/day, every ~90 min)
@@ -119,20 +141,28 @@ Manual posts do NOT count toward the daily 5-post limit.
 
 ## Architecture
 
+All publishing logic lives in `mobiletimes_agent.py`. The workflows are thin triggers that call the same script with different flags. Fix something once — it applies everywhere.
+
 ```
 themobiletimes.com
         │
         ├── GitHub Actions (free, cloud, no PC needed)
-        │       ├── daily-posts.yml      → 5 cron triggers/day (one per slot)
-        │       ├── breaking-news.yml    → 16 triggers/day (every ~90 min)
-        │       ├── manual-story.yml     → on-demand via GitHub UI
-        │       └── monthly-seo.yml      → 1st of month
+        │       ├── daily-posts.yml      → 4 cron triggers/day (--slot 1/2/3/4)
+        │       ├── weekly-insights.yml  → 3×/week Mon/Wed/Fri (--blog <subcategory>)
+        │       ├── breaking-news.yml    → 16 triggers/day (separate script)
+        │       ├── manual-story.yml     → on-demand (--single or --url)
+        │       └── monthly-seo.yml      → 1st of month (separate script)
         │
         ├── Python Scripts (Automation/)
-        │       ├── mobiletimes_agent.py   → core: RSS/News API → AI → WordPress
-        │       ├── breaking_monitor.py    → urgency scoring + breaking posts
-        │       ├── social_poster.py       → Telegram / Twitter / LinkedIn / Facebook
-        │       └── gsc_optimizer.py       → monthly meta rewriting from GSC data
+        │       ├── mobiletimes_agent.py   → ALL publishing logic lives here
+        │       │                            --slot N  = daily news posts
+        │       │                            --blog X  = weekly insights blogs
+        │       │                            --single  = manual topic post
+        │       │                            --url     = rewrite from source
+        │       │                            --run-now = all 4 slots at once
+        │       ├── breaking_monitor.py    → separate: urgency scoring + breaking posts
+        │       ├── social_poster.py       → called by both scripts after each publish
+        │       └── gsc_optimizer.py       → separate: monthly GSC meta rewrites
         │
         ├── External APIs (Active)
         │       ├── Claude Sonnet 4.6      → article writing (~₹400/month)
@@ -213,8 +243,9 @@ TMT/
 │
 └── .github/
     └── workflows/
-        ├── daily-posts.yml      → 5 crons: 02:30, 04:30, 06:30, 09:30, 12:30 UTC
-        ├── breaking-news.yml    → 16 crons/day (00:00, 01:30, 03:00, 04:30 ... every 90min)
+        ├── daily-posts.yml      → 4 crons: 02:30, 06:30, 10:30, 14:30 UTC (= 08/12/16/20 IST)
+        ├── weekly-insights.yml  → Mon/Wed/Fri 03:00 UTC (= 08:30 IST)
+        ├── breaking-news.yml    → 16 crons/day (00:00, 01:30, 03:00 ... every 90min)
         ├── manual-story.yml     → manual trigger (topic or URL input)
         └── monthly-seo.yml      → 03:00 UTC on 1st of month
 ```
@@ -263,13 +294,15 @@ All endpoints are `POST /wp-json/tmt/v1/{path}` and require `"secret": TMT_SECRE
 
 ## Daily Post Limit
 
-The system enforces a combined limit of **5 automated posts per day** across all scripts.
+The system enforces a combined limit of **5 automated posts per day** covering daily news + breaking news.
 
-- `mobiletimes_agent.py` increments `auto_posts_YYYY-MM-DD` in WP state after each scheduled publish
+- `mobiletimes_agent.py` increments `auto_posts_YYYY-MM-DD` after each scheduled news publish
 - `breaking_monitor.py` reads this counter before publishing; skips if ≥ 5
 - Breaking posts also increment the counter after publishing
+- With 4 daily slots, breaking news can fire up to 1 more time per day to reach the limit of 5
+- **Weekly blogs (`--blog`) do NOT count toward the limit — they are completely separate**
 - **Manual modes (`--single`, `--url`) do NOT count toward the limit**
-- The breaking monitor has an additional cap of 3 breaking posts per day (secondary guard)
+- The breaking monitor has an additional hard cap of 3 breaking posts per day
 
 ---
 
@@ -289,20 +322,25 @@ Publishes within 3–5 minutes to WordPress
 
 **From PC (Automation/ folder):**
 ```bash
-# Write and publish article from a topic
+# Write and publish one article on a specific topic
 python mobiletimes_agent.py --single "Airtel hikes prepaid plans by 20%"
 
 # Rewrite a source article in TMT voice
 python mobiletimes_agent.py --url "https://telecomtalk.info/some-article"
 
-# Feed a manual tip into the next slot's story selection
-python mobiletimes_agent.py --tip "Jio announces free 5G trial in Tier 2 cities"
-
-# Run a specific slot now
+# Run a specific daily news slot now
 python mobiletimes_agent.py --slot 2
 
-# Run all 5 slots at once
+# Run all 4 daily slots at once
 python mobiletimes_agent.py --run-now
+
+# Publish a weekly insights blog manually (AI picks the topic from current news)
+python mobiletimes_agent.py --blog industry-insights
+python mobiletimes_agent.py --blog case-studies
+python mobiletimes_agent.py --blog how-to-guides
+
+# Feed a manual tip into the next slot's story selection
+python mobiletimes_agent.py --tip "Jio announces free 5G trial in Tier 2 cities"
 
 # Generate 1 draft post without publishing (for previewing)
 python mobiletimes_agent.py --test-post

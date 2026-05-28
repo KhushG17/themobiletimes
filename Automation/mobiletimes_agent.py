@@ -49,7 +49,7 @@ UNSPLASH_KEY   = os.getenv("UNSPLASH_ACCESS_KEY", "")
 
 AUTHOR_NAME    = "Sanjay Goyal"
 AUTHOR_URL     = "https://themobiletimes.com/author/sanjay/"
-POST_TIMES_IST = ["08:00", "10:00", "12:00", "15:00", "18:00"]  # IST publish slots
+POST_TIMES_IST = ["08:00", "12:00", "16:00", "20:00"]  # IST publish slots (4 per day)
 
 IST           = pytz.timezone("Asia/Kolkata")
 creds         = base64.b64encode(f"{WP_USER}:{WP_PASS}".encode()).decode()
@@ -173,21 +173,23 @@ BLOG_WORD_TARGET  = "900-1000"  # blog/insights: authoritative long-form
 
 BLOG_SUBCATEGORY_CONTEXT = {
     "industry-insights": (
-        "a strategic analysis or opinion piece on a major trend, development, or shift "
-        "in Indian telecom this week. Cover something meaningful that happened or is about "
-        "to happen. Should give telecom professionals a clear perspective they can't get "
-        "from regular news coverage."
+        "a full week recap and analysis for The Mobile Times — summarise the 3-5 most "
+        "important things that happened in Indian telecom this week, what they mean, and "
+        "what to watch next. Tone: sharp editorial roundup, like a weekly briefing a "
+        "telecom professional would forward to their team."
     ),
     "case-studies": (
-        "a deep-dive case study on a specific company, product, strategic decision, or "
-        "campaign in Indian telecom. Focus on what happened, why they did it, what worked "
-        "or failed, and what other operators or businesses can learn from it."
+        "a case study about something Indian users are actively researching or a company "
+        "decision that people want to understand deeply. Pick a specific operator, product "
+        "launch, policy change, or strategic move from recent news. Cover: what happened, "
+        "why they did it, what the data shows, and what others can learn from it."
     ),
     "how-to-guides": (
-        "a practical, step-by-step guide that helps Indian consumers or telecom "
-        "professionals do something specific — like porting a number, picking the best 5G "
-        "plan, securing their mobile account, activating a service, or understanding a "
-        "TRAI rule. Should be immediately useful and actionable."
+        "a practical, step-by-step how-to guide for Indian consumers doing something "
+        "telecom-related. Examples: how to port your number, how to activate 5G on your "
+        "phone, how to pick the best Jio plan for your usage, how to file a TRAI complaint. "
+        "Should be immediately actionable, with numbered steps, and answer the exact query "
+        "people type into Google."
     ),
 }
 
@@ -1035,7 +1037,7 @@ Respond with JSON only — no extra text:
 
 
 def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
-    """Select 5 best stories with dynamic category assignment — no fixed slot constraints."""
+    """Select 4 best stories with dynamic category assignment — one per daily slot."""
     if not stories:
         return []
 
@@ -1049,37 +1051,36 @@ def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
 
 Today's trending keywords: {', '.join(trending)}
 
-Pick the 5 BEST, most newsworthy stories. Rules:
+Pick the 4 BEST, most newsworthy stories. Rules:
 
-- type: always "news" for all 5
+- type: always "news" for all 4
 - category: assign each story to its BEST fitting category from this full list:
   {ALL_NEWS_CATEGORIES}
-- Try to pick stories from DIFFERENT categories (diversity — don't pick 5 5G stories)
+- Try to pick stories from DIFFERENT categories (diversity — don't pick 4 5G stories)
 - Prioritise India-relevant stories
-- Each story used exactly once (no duplicates across the 5 slots)
+- Each story used exactly once (no duplicates across the 4 slots)
 - tags: exactly ONE per story from: trending, breaking-news, new-launch
     "breaking-news" = urgent, just happened, major immediate impact
     "new-launch"    = product/service/policy launch or major announcement
     "trending"      = default for anything else notable
-- is_breaking: true only if genuinely urgent breaking news (max 1 across all 5)
+- is_breaking: true only if genuinely urgent breaking news (max 1 across all 4)
 - focus_keyword: 2-4 word SEO keyword from the story
 - "cred" is source credibility (0–100). Prefer higher-credibility sources when stories are otherwise equal. Never sacrifice relevance or diversity for credibility.
 
 Stories:
 {stories_json}
 
-Respond with a JSON array of exactly 5 objects. Output ONLY the JSON array:
+Respond with a JSON array of exactly 4 objects. Output ONLY the JSON array:
 [
   {{"slot":1,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}},
   {{"slot":2,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}},
   {{"slot":3,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}},
-  {{"slot":4,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}},
-  {{"slot":5,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}}
+  {{"slot":4,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}}
 ]"""
 
     r = anthropic_client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=700,
+        max_tokens=600,
         messages=[{"role": "user", "content": prompt}]
     )
     try:
@@ -1103,15 +1104,15 @@ Respond with a JSON array of exactly 5 objects. Output ONLY the JSON array:
             if story.get("category") not in CATEGORY_IDS:
                 story["category"] = "industry-trends"
             result.append(story)
-        return result[:5]
+        return result[:4]
     except Exception as e:
         log.error(f"Story selection parse failed: {e}")
         fallback_cats = ["policy-updates", "ai-machine-learning",
-                         "smartphones-tablets", "5g-networks", "industry-trends"]
+                         "smartphones-tablets", "5g-networks"]
         return [{**stories[i], "type": "news", "category": fallback_cats[i],
                  "tags": ["trending"], "is_breaking": False,
                  "focus_keyword": "India telecom news"}
-                for i in range(min(5, len(stories)))]
+                for i in range(min(4, len(stories)))]
 
 
 # ─── Content Generation ───────────────────────────────────────────────────────
@@ -2100,10 +2101,10 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     published = []
     today_str = now_ist.strftime("%Y-%m-%d")
 
-    # Step 5: Generate and publish 5 news posts
+    # Step 5: Generate and publish 4 news posts
     for i, story in enumerate(selected):
         post_type = "exclusive" if story.get("type") == "exclusive" else "news"
-        log.info(f"Generating post {i+1}/5: {story['title'][:60]}...")
+        log.info(f"Generating post {i+1}/4: {story['title'][:60]}...")
 
         post_data = generate_news_post(story, date_str)
 
@@ -2170,7 +2171,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
     # Final summary
     log.info("\n" + "=" * 60)
-    log.info(f"Run complete — {len(published)}/5 posts published")
+    log.info(f"Run complete — {len(published)}/4 posts published")
     for p in published:
         log.info(f"  [{p['type'].upper()}] {p['title'][:55]} -> {p['url']}")
     log.info("=" * 60)
@@ -2200,7 +2201,7 @@ def run_scheduler():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="The Mobile Times Automation Agent")
     parser.add_argument("--run-now",   action="store_true", help="Run all 5 slots at once immediately")
-    parser.add_argument("--slot",      type=int, choices=[1,2,3,4,5], help="Run a single news slot (1–5)")
+    parser.add_argument("--slot",      type=int, choices=[1,2,3,4], help="Run a single news slot (1–4: 8am/12pm/4pm/8pm IST)")
     parser.add_argument("--schedule",  action="store_true", help="Run daily at 08:00 IST")
     parser.add_argument("--tip",       type=str, default="", help="Manual news tip — fed into the next slot's story selection")
     parser.add_argument("--single",    type=str, default="", help="Write and publish ONE article on a specific topic")
@@ -2321,28 +2322,30 @@ if __name__ == "__main__":
             img_title=post_data["focus_keyword"],
         )
 
-        # Body image
+        # Blog gets 2 body images for a richer, magazine-style layout
         _blog_body_map = {
-            "industry-insights": "India business technology",
-            "case-studies":      "India business office",
-            "how-to-guides":     "technology guide setup",
+            "industry-insights": ("India business technology", "India telecom network"),
+            "case-studies":      ("India business office",    "India startup company"),
+            "how-to-guides":     ("technology guide setup",   "smartphone India user"),
         }
-        body_q     = _blog_body_map.get(subcategory, "India telecom technology")
-        body_bytes = (
-            fetch_unsplash_image(body_q, watermark=True) or
-            fetch_pexels_image(body_q, watermark=True)
-        )
-        if body_bytes:
-            _, body_url = upload_image_to_wp(
-                body_bytes, f"{blog_kw_fn}-body-{today_str}.jpg",
-                alt=f"{post_data['focus_keyword']} | The Mobile Times",
-                img_title=post_data["focus_keyword"],
+        body_queries = _blog_body_map.get(subcategory, ("India telecom technology", "India digital"))
+
+        for img_idx, bq in enumerate(body_queries):
+            body_bytes = (
+                fetch_unsplash_image(bq, watermark=True) or
+                fetch_pexels_image(bq, watermark=True)
             )
-            if body_url:
-                post_data["content"] = inject_body_image_html(
-                    post_data["content"], body_url,
-                    f"{post_data['focus_keyword']} | The Mobile Times"
+            if body_bytes:
+                _, body_url = upload_image_to_wp(
+                    body_bytes, f"{blog_kw_fn}-body{img_idx+1}-{today_str}.jpg",
+                    alt=f"{post_data['focus_keyword']} | The Mobile Times",
+                    img_title=post_data["focus_keyword"],
                 )
+                if body_url:
+                    post_data["content"] = inject_body_image_html(
+                        post_data["content"], body_url,
+                        f"{post_data['focus_keyword']} | The Mobile Times"
+                    )
 
         result = publish_post(post_data, media_id, sticky=False)
         if result:

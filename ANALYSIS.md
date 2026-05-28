@@ -1,7 +1,7 @@
 # TMT System Analysis — Full Audit
-**Date:** May 28, 2026  
+**Date:** May 28, 2026 (updated May 28, 2026)  
 **Scope:** Automation system + WordPress installation  
-**Status:** Production live. Phase 1 complete. Google News application pending.
+**Status:** Production live. Phase 1 complete. Weekly Insights live. Google News application pending.
 
 ---
 
@@ -10,8 +10,8 @@
 ```
 GitHub Repository
 ├── Automation/                     ← Python automation scripts
-│   ├── mobiletimes_agent.py        ← Core: 5 daily posts
-│   ├── breaking_monitor.py         ← 24/7 breaking news (every 3h via GHA)
+│   ├── mobiletimes_agent.py        ← Core: ALL publishing logic (news + blogs + manual)
+│   ├── breaking_monitor.py         ← Breaking news only (separate scoring + format)
 │   ├── social_poster.py            ← Social media (code ready, Phase 2)
 │   ├── gsc_optimizer.py            ← Monthly SEO meta rewrites (inactive)
 │   ├── tmt-admin-api/              ← Custom WP plugin (must stay deployed)
@@ -20,9 +20,10 @@ GitHub Repository
 │   └── requirements.txt
 │
 └── .github/workflows/
-    ├── daily-posts.yml             ← 5 crons/day, one per slot
-    ├── breaking-news.yml           ← 16×/day (every 1.5h, two offset patterns)
-    ├── manual-story.yml            ← On-demand via GitHub UI
+    ├── daily-posts.yml             ← 4 crons/day: 08/12/16/20 IST (--slot 1-4)
+    ├── weekly-insights.yml         ← Mon/Wed/Fri 08:30 IST (--blog <subcategory>)
+    ├── breaking-news.yml           ← 16×/day (every 1.5h, separate script)
+    ├── manual-story.yml            ← On-demand via GitHub UI (--single or --url)
     └── monthly-seo.yml             ← 1st of month (currently skipped — no GSC creds)
 
 WordPress (Hostinger LiteSpeed, local copy at public_html/ — NOT in git)
@@ -132,7 +133,7 @@ All stored as `tmt_state_{name}` in `wp_options` (autoload=false):
 
 | # | Issue | Severity | Details |
 |---|-------|----------|---------|
-| A1 | **Weekly blog topics 7–14 never used** | MEDIUM | `WEEKLY_BLOG_TOPICS` has keys 0–14 but `weekday()` returns 0–6. Topics at indices 7–14 are unreachable. |
+| A1 | ~~Weekly blog topics 7–14 never used~~ | **FIXED** | `WEEKLY_BLOG_TOPICS` removed entirely. All 5 daily slots are now news posts. Weekly blogs are a separate dynamic system (Mon/Wed/Fri, AI-picked topics). |
 | A2 | **gsc_optimizer.py disabled** | MEDIUM | GSC credentials not configured. Monthly SEO workflow silently skips. Opportunity cost: no meta rewriting happening. |
 | A3 | **fal.ai quota likely depleted** | MEDIUM | Blog posts (Slot 5) fall back to Pexels if fal.ai fails. No error visible to user. |
 | A4 | **IndexNow key may be empty** | MEDIUM | `INDEXNOW_KEY = ""` if secret not set. Only Google ping fires. Bing/Yandex miss instant indexing. |
@@ -171,7 +172,9 @@ All stored as `tmt_state_{name}` in `wp_options` (autoload=false):
 - ✅ **WP state API** — clean persistent storage, no file commits needed
 - ✅ **Dual dedup** (word overlap + semantic) — prevents obvious content repetition  
 - ✅ **Source authority scoring** — routes to higher-quality stories
-- ✅ **10 article templates** — good content variety
+- ✅ **10 article templates** — 6 news + 4 blog, good content variety
+- ✅ **Dynamic blog topics** — AI picks blog topic fresh from current news each run (Mon/Wed/Fri), not from a static hardcoded list
+- ✅ **Weekly blogs outside daily limit** — 3 extra posts/week don't interfere with daily news cap
 - ✅ **Robust image fallback chain** — never fails to produce an image
 - ✅ **Post-publish pipeline complete** — views seed, cache flush, IndexNow, social, state save all in sequence
 - ✅ **Combined daily limit (5/day)** — prevents overpublishing, manual posts exempt
@@ -221,10 +224,10 @@ All stored as `tmt_state_{name}` in `wp_options` (autoload=false):
 
 | Phase | Posts | Monthly Content | DB Size | Expected Impact |
 |-------|-------|----------------|---------|-----------------|
-| Now | 5/day | ~150 posts/month | Small | 1–3k visitors/month |
-| Phase 2 (social live) | 5/day | ~150 posts/month | Medium | 3–8k visitors/month |
-| Phase 3 (comparison engine) | 5/day + 50 comparison pages | ~200/month | Medium | 8–20k/month |
-| After Google News | 5/day | ~150 posts/month | Medium | 15–50k/month (single trending story = 5k in a day) |
+| Now | 4 news/day + 3 blogs/week | ~135 posts/month | Small | 1–3k visitors/month |
+| Phase 2 (social live) | 4 news/day + 3 blogs/week | ~135 posts/month | Medium | 3–8k visitors/month |
+| Phase 3 (comparison engine) | same + 50 comparison pages | ~185/month | Medium | 8–20k/month |
+| After Google News | 4 news/day + 3 blogs/week | ~135 posts/month | Medium | 15–50k/month (trending story = 5k in a day) |
 
 **Bottleneck:** Google News approval. Everything else is secondary.
 
