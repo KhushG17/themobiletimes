@@ -347,36 +347,20 @@ RSS_FEEDS = [
     "https://thenextweb.com/feed/",
 ]
 
-# ── Per-slot mandatory category buckets ───────────────────────────────────────
-# Each slot is assigned a content theme. Claude must pick from this theme.
-SLOT_THEMES = {
-    1: {
-        "name":    "Telecom Operators & Networks",
-        "desc":    "telecom operators (Jio, Airtel, BSNL, Vi), network rollout, 5G coverage, spectrum auctions, "
-                   "subscriber numbers, tariff plans, telecom revenue, tower infrastructure, satellite internet",
-        "avoid":   "Do NOT pick gadget launches, OTT content, or general business news for this slot.",
-    },
-    2: {
-        "name":    "Devices, Gadgets & Consumer Tech",
-        "desc":    "smartphone launches, mobile device specs, tablets, laptops, wearables, TWS earbuds, "
-                   "smart home gadgets, app launches, consumer electronics, India pricing and availability",
-        "avoid":   "Do NOT pick telecom operator news, policy/regulation, or enterprise tech for this slot.",
-    },
-    3: {
-        "name":    "Cybersecurity, AI, Policy & Regulation",
-        "desc":    "cybersecurity incidents, data breaches, ransomware, hacking, AI/ML developments, "
-                   "TRAI/DOT regulations, government policy, DPDPA data privacy, cloud computing, "
-                   "enterprise software, fintech regulation",
-        "avoid":   "Do NOT pick device launches or telecom operator tariff news for this slot.",
-    },
-    4: {
-        "name":    "Open — OTT, Markets, Innovation & Everything Else",
-        "desc":    "OTT/streaming platforms, market analysis, India tech startups, EV/smart grids, "
-                   "IoT deployments, satellite internet, semiconductor news, any strong story from a "
-                   "category NOT already covered in slots 1-3 today",
-        "avoid":   "Actively pick something DIFFERENT from slots 1-3. Avoid repeating themes.",
-    },
-}
+# ── Site coverage map — used to guide diversity in story selection ─────────────
+# Not slot assignments. Claude uses this to understand what areas the site covers
+# and to ensure the day's posts span as many different areas as possible.
+COVERAGE_AREAS = [
+    "Telecom operators, carrier strategies, network rollout, 5G, spectrum, subscribers, plans (Jio/Airtel/BSNL/Vi)",
+    "Smartphones, devices, gadgets, consumer electronics, launches, specs, India pricing",
+    "Cybersecurity, data breaches, hacking, ransomware, digital fraud, CERT-In alerts",
+    "AI, machine learning, cloud computing, enterprise software, automation in India",
+    "TRAI, DOT, government policy, telecom regulation, spectrum auctions, DPDPA privacy law",
+    "OTT, streaming platforms, digital media, JioCinema, Netflix India, content deals",
+    "India tech startups, funding rounds, M&A, market analysis, business strategy",
+    "IoT, smart devices, EV, electric vehicles, smart grids, emerging technology",
+    "Semiconductor, chips, hardware, manufacturing, global supply chain impact on India",
+]
 
 # Queries for News API (newsapi.org) — balanced across all categories
 NEWS_API_QUERIES = [
@@ -1078,25 +1062,36 @@ ALL_NEWS_CATEGORIES = ", ".join(k for k in CATEGORY_IDS if k not in ("exclusive"
 
 INSIGHTS_SUBCATEGORIES = ["industry-insights", "how-to-guides", "case-studies", "press-releases"]
 
-def select_story_for_slot(stories: list[dict], slot: int, trending: list[str]) -> dict | None:
-    """Select the best story for a single slot using its mandatory content theme."""
-    theme = SLOT_THEMES.get(slot, SLOT_THEMES[4])
+def select_story_for_slot(stories: list[dict], slot: int, trending: list[str],
+                          already_covered: list[str] | None = None) -> dict | None:
+    """Select the best story for a single slot.
+    already_covered: list of topic descriptions from earlier slots today, used to avoid repetition."""
     stories_json = json.dumps(
         [{"i": i, "title": s["title"], "summary": s["summary"][:200],
           "cred": s.get("credibility", 50)}
          for i, s in enumerate(stories)],
         indent=2
     )
+    coverage_map = "\n".join(f"- {a}" for a in COVERAGE_AREAS)
+    covered_note = ""
+    if already_covered:
+        covered_note = (
+            f"\nALREADY COVERED TODAY: {', '.join(already_covered)}\n"
+            "Pick something from a DIFFERENT area than what is already covered above."
+        )
+
     prompt = f"""You are the editor of The Mobile Times, India's leading telecom and tech publication.
 
 Today's trending keywords: {', '.join(trending)}
 
-THIS IS SLOT {slot} — MANDATORY THEME: {theme['name']}
-This slot MUST cover: {theme['desc']}
-{theme['avoid']}
+The Mobile Times covers ALL of these areas — pick the most newsworthy story that adds something NEW today:
+{coverage_map}
+{covered_note}
 
-Pick the single best story from the list below that fits this slot's theme.
-If no story fits perfectly, pick the closest match to the theme.
+Pick the single best story from the list below. Prioritise:
+1. Genuine news value and India relevance
+2. Something from a coverage area not yet covered today
+3. Higher source credibility when stories are otherwise equal
 
 RULES:
 - type: always "news"
@@ -1107,8 +1102,6 @@ RULES:
     "trending"      = default for anything else
 - is_breaking: true only if genuinely urgent
 - focus_keyword: 2-4 word SEO keyword from the story
-- Prioritise India-relevant stories
-- "cred" = source credibility 0–100. Prefer higher-credibility when otherwise equal.
 
 Stories:
 {stories_json}
@@ -1147,7 +1140,7 @@ Respond with JSON only — no extra text:
 
 
 def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
-    """Select 4 stories — one per slot, each with a mandatory content theme for category diversity."""
+    """Select 4 stories with maximum topic diversity across the site's coverage areas."""
     if not stories:
         return []
 
@@ -1157,34 +1150,33 @@ def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
          for i, s in enumerate(stories)],
         indent=2
     )
-
-    slot_instructions = "\n".join([
-        f"SLOT {slot} ({['','8am','12pm','4pm','8pm'][slot]} IST) — {t['name']}:\n"
-        f"  Pick 1 story about: {t['desc']}\n"
-        f"  {t['avoid']}"
-        for slot, t in SLOT_THEMES.items()
-    ])
+    coverage_map = "\n".join(f"- {a}" for a in COVERAGE_AREAS)
 
     prompt = f"""You are the editor of The Mobile Times, India's leading telecom and tech publication.
 
 Today's trending keywords: {', '.join(trending)}
 
-Select exactly ONE story for each of the 4 daily slots. Each slot has a MANDATORY content theme.
-Each story must be UNIQUE — no index used twice.
+The Mobile Times covers all of these areas:
+{coverage_map}
 
-{slot_instructions}
+Select the 4 BEST stories from the pool below. Your goal is maximum editorial variety:
+- The 4 stories should collectively span as many DIFFERENT coverage areas as possible
+- Do NOT pick 2 or more stories that are essentially about the same topic or the same area
+- If 3 strong telecom-operator stories exist, still pick only 1 of them — use the other 2 slots for different areas
+- Best story wins within each area — you decide which areas to cover today based on what's available and newsworthy
+- Prioritise India relevance, but include global tech if India news is thin in a particular area
+- Each story used exactly once (no duplicate indices)
 
-RULES FOR ALL SLOTS:
-- type: always "news"
-- category: assign to the best fitting category from: {ALL_NEWS_CATEGORIES}
+RULES:
+- type: always "news" for all 4
+- category: assign each to the best fitting category from: {ALL_NEWS_CATEGORIES}
 - tags: exactly ONE per story from: trending, breaking-news, new-launch
     "breaking-news" = urgent, just happened, major immediate impact
     "new-launch"    = product/service/policy launch or major announcement
-    "trending"      = default for anything else notable
-- is_breaking: true only if genuinely urgent (max 1 across all 4)
+    "trending"      = default for anything else
+- is_breaking: true only if genuinely urgent (max 1 across the 4)
 - focus_keyword: 2-4 word SEO keyword from the story
-- Prioritise India-relevant stories within each theme
-- "cred" = source credibility 0–100. Prefer higher cred when themes are otherwise equal.
+- "cred" = source credibility 0–100. Prefer higher-cred sources when news value is otherwise equal.
 
 Stories:
 {stories_json}
@@ -2297,7 +2289,31 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
                 "url": WP_URL, "source": "TMT Editorial",
             })
 
-        story = select_story_for_slot(stories, slot, trending)
+        # Build "already covered today" context from today's published posts
+        # so this slot knows what themes the earlier slots already covered
+        already_covered = []
+        try:
+            today_posts = [
+                re.sub(r"<[^>]+>", "", t).lower()
+                for t in list(published_titles)[:20]
+                if t  # published_titles has today + recent
+            ]
+            # Simple heuristic: detect main topic from recent titles
+            topic_signals = {
+                "telecom operator/network": ["jio", "airtel", "bsnl", "vi ", "vodafone", "spectrum", "5g rollout", "subscribers"],
+                "devices/gadgets": ["smartphone", "phone launch", "tablet", "laptop", "earbuds", "wearable", "specs"],
+                "cybersecurity": ["hack", "breach", "ransomware", "malware", "cybersecurity", "fraud", "cert-in"],
+                "AI/software": ["artificial intelligence", "ai ", "machine learning", "cloud", "software"],
+                "policy/regulation": ["trai", "dot ", "regulation", "policy", "dpdpa", "government"],
+                "OTT/streaming": ["ott", "netflix", "jiocinema", "streaming", "content deal"],
+            }
+            for topic, keywords in topic_signals.items():
+                if any(any(kw in title for kw in keywords) for title in today_posts[:10]):
+                    already_covered.append(topic)
+        except Exception:
+            pass
+
+        story = select_story_for_slot(stories, slot, trending, already_covered or None)
         if not story:
             log.error(f"Slot {slot} — story selection failed, aborting")
             return
