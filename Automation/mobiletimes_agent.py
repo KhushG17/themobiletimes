@@ -72,63 +72,118 @@ _seen_urls: set = set()               # populated once per run_daily(); URL-leve
 
 
 def load_seen_urls() -> set:
-    """Load previously processed story URLs from WordPress state (tmt-admin-api)."""
-    try:
-        r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/state/get",
-            json={"secret": TMT_SECRET, "name": "seen_urls"},
-            timeout=10,
-        )
-        if r.ok:
-            data = r.json().get("value") or {}
-            return set(data.get("urls", []))
-    except Exception as e:
-        log.warning(f"load_seen_urls failed: {e}")
-    return set()
+    """Load previously processed story URLs from WordPress state. Returns None on failure (not empty set)."""
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/state/get",
+                json={"secret": TMT_SECRET, "name": "seen_urls"},
+                timeout=8,
+            )
+            if r.ok:
+                data = r.json().get("value") or {}
+                return set(data.get("urls", []))
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2)
+    log.warning("load_seen_urls failed 3× — returning None to prevent data loss")
+    return None  # explicit None = API failure, not genuinely empty
 
 
 def save_seen_urls(new_urls: set):
-    """Append new story URLs to WP state, keeping last 2,000."""
+    """Append new story URLs to WP state. Skips save if load failed to prevent wiping history."""
     existing = load_seen_urls()
-    merged   = list(existing | new_urls)[-2000:]
-    try:
-        requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/state/set",
-            json={"secret": TMT_SECRET, "name": "seen_urls", "value": {"urls": merged}},
-            timeout=10,
-        )
-    except Exception as e:
-        log.warning(f"save_seen_urls failed: {e}")
+    if existing is None:
+        log.warning("save_seen_urls skipped — could not load existing URLs (prevents data loss)")
+        return
+    merged = list(existing | new_urls)[-2000:]
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/state/set",
+                json={"secret": TMT_SECRET, "name": "seen_urls", "value": {"urls": merged}},
+                timeout=8,
+            )
+            if r.ok:
+                return
+        except Exception:
+            pass
+        if attempt < 2:
+            time.sleep(2)
+    log.warning("save_seen_urls save failed after 3 attempts")
 
 
-_used_unsplash_ids: set[str] = set()   # in-memory dedup for this run
-
-def load_pexels_ids() -> set:
-    """Load previously used Pexels photo IDs from WordPress state (persists across ephemeral runners)."""
-    try:
-        r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/state/get",
-            json={"secret": TMT_SECRET, "name": "pexels_used_ids"},
-            timeout=10,
-        )
-        if r.ok:
-            data = r.json().get("value") or {}
-            return set(data.get("ids", []))
-    except Exception:
-        pass
-    return set()
+def load_pexels_ids() -> set | None:
+    """Load previously used Pexels photo IDs from WP state. Returns None on failure."""
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/state/get",
+                json={"secret": TMT_SECRET, "name": "pexels_used_ids"},
+                timeout=8,
+            )
+            if r.ok:
+                data = r.json().get("value") or {}
+                return set(data.get("ids", []))
+        except Exception:
+            if attempt < 2:
+                time.sleep(2)
+    return None
 
 
 def save_pexels_id(photo_id: int):
-    """Persist a used Pexels photo ID to WordPress state, keeping last 1,000."""
+    """Persist a used Pexels photo ID to WP state. Skips if load failed to prevent wiping history."""
     ids = load_pexels_ids()
+    if ids is None:
+        return  # don't overwrite history on load failure
     ids.add(photo_id)
     try:
         requests.post(
             f"{WP_URL}/wp-json/tmt/v1/state/set",
             json={"secret": TMT_SECRET, "name": "pexels_used_ids",
                   "value": {"ids": list(ids)[-1000:]}},
-            timeout=10,
+            timeout=8,
+        )
+    except Exception:
+        pass
+
+
+_used_unsplash_ids_cache: set[str] | None = None  # WP-persisted across runs
+
+def load_unsplash_ids() -> set:
+    """Load previously used Unsplash photo IDs from WP state. Persists across GHA runs."""
+    global _used_unsplash_ids_cache
+    if _used_unsplash_ids_cache is not None:
+        return _used_unsplash_ids_cache
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/state/get",
+                json={"secret": TMT_SECRET, "name": "unsplash_used_ids"},
+                timeout=8,
+            )
+            if r.ok:
+                data = r.json().get("value") or {}
+                _used_unsplash_ids_cache = set(data.get("ids", []))
+                return _used_unsplash_ids_cache
+        except Exception:
+            if attempt < 2:
+                time.sleep(2)
+    _used_unsplash_ids_cache = set()
+    return _used_unsplash_ids_cache
+
+def save_unsplash_id(photo_id: str):
+    """Persist a used Unsplash photo ID to WP state, keeping last 1,000."""
+    global _used_unsplash_ids_cache
+    ids = load_unsplash_ids()
+    ids.add(photo_id)
+    _used_unsplash_ids_cache = ids
+    try:
+        requests.post(
+            f"{WP_URL}/wp-json/tmt/v1/state/set",
+            json={"secret": TMT_SECRET, "name": "unsplash_used_ids",
+                  "value": {"ids": list(ids)[-1000:]}},
+            timeout=8,
         )
     except Exception:
         pass
@@ -214,14 +269,26 @@ Rules:
 
 Respond with ONLY the topic title. No quotes, no explanation. 55-75 characters."""
 
-    resp = anthropic_client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=100,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    topic = resp.content[0].text.strip().strip('"').strip("'")
-    log.info(f"  AI-selected blog topic: {topic}")
-    return topic
+    _fallbacks = {
+        "industry-insights": "India Telecom in 2026: Key Trends Shaping the Industry This Week",
+        "case-studies":      "How Jio Built India's Largest 5G Network: Lessons for Operators",
+        "how-to-guides":     "How to Port Your Mobile Number in India: Step-by-Step Guide 2026",
+    }
+    try:
+        resp = anthropic_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=100,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        topic = resp.content[0].text.strip().strip('"').strip("'")
+        if len(topic) < 15 or len(topic) > 120:
+            raise ValueError(f"Topic length invalid: {len(topic)} chars")
+        log.info(f"  AI-selected blog topic: {topic}")
+        return topic
+    except Exception as e:
+        fallback = _fallbacks.get(subcategory, "India Telecom Weekly: Key Developments and Analysis 2026")
+        log.warning(f"  pick_blog_topic failed ({e}) — using fallback: {fallback}")
+        return fallback
 
 RSS_FEEDS = [
     # ── India telecom & tech (primary) ───────────────────────────────────────
@@ -505,7 +572,6 @@ def fetch_fal_image(topic: str) -> bytes | None:
 
 def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
     """Search Unsplash for free-to-use images (Unsplash License — commercial use allowed, no attribution required)."""
-    global _used_unsplash_ids
     if not UNSPLASH_KEY:
         return None
     try:
@@ -525,7 +591,8 @@ def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
         results = r.json().get("results", [])
         if not results:
             return None
-        fresh = [p for p in results if p["id"] not in _used_unsplash_ids]
+        used_ids = load_unsplash_ids()
+        fresh = [p for p in results if p["id"] not in used_ids]
         candidates = fresh[:6] if fresh else results[:6]
         random.shuffle(candidates)
         for photo in candidates:
@@ -542,7 +609,7 @@ def fetch_unsplash_image(query: str, watermark: bool = True) -> bytes | None:
                     img = add_watermark(img)
                 buf = io.BytesIO()
                 img.save(buf, "JPEG", quality=90)
-                _used_unsplash_ids.add(photo["id"])
+                save_unsplash_id(photo["id"])
                 log.info(f"  Unsplash image: {photo.get('id','')} by {photo.get('user',{}).get('name','')}")
                 return buf.getvalue()
             except Exception:
@@ -1990,29 +2057,37 @@ def get_tag_ids(tag_slugs: list[str]) -> list[int]:
     return [TAG_IDS[s] for s in tag_slugs if s in TAG_IDS]
 
 def save_rank_math_meta(post_id: int, post_data: dict):
-    """Save Rank Math SEO meta via tmt-admin-api plugin."""
-    r = requests.post(
-        f"{WP_URL}/wp-json/tmt/v1/update-meta",
-        json={
-            "secret":     TMT_SECRET,
-            "objectID":   post_id,
-            "objectType": "post",
-            "meta": {
-                "rank_math_title":               post_data["meta_title"],
-                "rank_math_description":         post_data["meta_description"],
-                "rank_math_focus_keyword":       post_data["focus_keyword"],
-                "rank_math_og_title":            post_data["og_title"],
-                "rank_math_og_description":      post_data["og_description"],
-                "rank_math_twitter_title":       post_data["og_title"],
-                "rank_math_twitter_description": post_data["og_description"],
-            },
+    """Save Rank Math SEO meta via tmt-admin-api plugin. Retries 3×."""
+    payload = {
+        "secret":     TMT_SECRET,
+        "objectID":   post_id,
+        "objectType": "post",
+        "meta": {
+            "rank_math_title":               post_data["meta_title"],
+            "rank_math_description":         post_data["meta_description"],
+            "rank_math_focus_keyword":       post_data["focus_keyword"],
+            "rank_math_og_title":            post_data["og_title"],
+            "rank_math_og_description":      post_data["og_description"],
+            "rank_math_twitter_title":       post_data["og_title"],
+            "rank_math_twitter_description": post_data["og_description"],
         },
-        timeout=15,
-    )
-    if r.ok:
-        log.info(f"  Rank Math meta saved for post {post_id}")
-    else:
-        log.warning(f"  Rank Math meta save failed ({r.status_code})")
+    }
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/update-meta",
+                json=payload,
+                timeout=12,
+            )
+            if r.ok:
+                log.info(f"  Rank Math meta saved for post {post_id}")
+                return
+            log.warning(f"  Rank Math meta save failed ({r.status_code}) attempt {attempt+1}/3")
+        except Exception as e:
+            log.warning(f"  Rank Math meta error attempt {attempt+1}/3: {e}")
+        if attempt < 2:
+            time.sleep(3)
+    log.error(f"  Rank Math meta gave up after 3 attempts for post {post_id}")
 
 def check_wp_health() -> bool:
     """Verify WordPress is reachable and authenticated before spending Anthropic credits.
@@ -2139,7 +2214,7 @@ def ping_indexing(post_url: str):
 
 def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None = None):
     global _recent_posts_cache, _seen_urls
-    _seen_urls = load_seen_urls()
+    _seen_urls = load_seen_urls() or set()
     now_ist   = datetime.now(IST)
     date_str  = now_ist.isoformat()
 
@@ -2202,7 +2277,6 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             return
 
         img_bytes = (
-            extract_source_image(story.get("url", ""), story.get("_og_image", "")) or
             fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
@@ -2418,6 +2492,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.url:
+        if not check_wp_health():
+            log.error("WordPress health check failed — aborting")
+            sys.exit(1)
         _recent_posts_cache = get_recent_posts()
         source_url = args.url
         log.info(f"URL rewrite mode — source: {source_url}")
@@ -2437,7 +2514,6 @@ if __name__ == "__main__":
         post_data = generate_news_post(story, date_str)
         log.info(f"  Generated title: {post_data['title']}")
         img = (
-            extract_source_image(source_url) or
             fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
@@ -2459,6 +2535,9 @@ if __name__ == "__main__":
             log.error("  Publish failed")
 
     elif args.single:
+        if not check_wp_health():
+            log.error("WordPress health check failed — aborting")
+            sys.exit(1)
         _recent_posts_cache = get_recent_posts()
         topic    = args.single
         date_str = datetime.now(IST).isoformat()
@@ -2603,7 +2682,7 @@ if __name__ == "__main__":
                 log.info(f"  Title: {post_data['title'][:60]}")
                 log.info(f"  Category: {post_data['category_slug']}  Tags: {post_data['tags']}")
                 log.info(f"  Focus keyword: {post_data['focus_keyword']}")
-                img      = extract_source_image(story.get("url", "")) or fetch_unsplash_image(post_data["focus_keyword"]) or fetch_pexels_image(post_data["focus_keyword"]) or make_fallback_image(story["title"])
+                img      = fetch_unsplash_image(post_data["focus_keyword"]) or fetch_pexels_image(post_data["focus_keyword"]) or make_fallback_image(story["title"])
                 test_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
                 media_id, _ = upload_image_to_wp(img, f"{test_kw_fn}-test.jpg", post_data["focus_keyword"])
                 result   = publish_post(post_data, media_id, sticky=False, draft=True)

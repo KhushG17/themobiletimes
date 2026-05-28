@@ -528,11 +528,18 @@ def score_story(story: dict) -> int:
     for kw in BREAKING_KEYWORDS:
         if kw in text:
             score += 5
-    # Recency boost: titles with today's date string
-    today = datetime.now(IST).strftime("%Y")
-    if today in text:
-        score += 10
-    # India relevance
+    # Recency boost: mentions today's actual date (e.g. "May 29" or "29 May")
+    now = datetime.now(IST)
+    today_patterns = [
+        now.strftime("%B %d").lower(),   # "may 29"
+        now.strftime("%d %B").lower(),   # "29 may"
+        now.strftime("%d/%m"),           # "29/05"
+        now.strftime("%Y-%m-%d"),        # "2026-05-29"
+        "today", "just now", "breaking", "minutes ago", "hours ago",
+    ]
+    if any(p in text for p in today_patterns):
+        score += 15
+    # India relevance bonus
     india_terms = ["india", "indian", "jio", "airtel", "bsnl", "trai"]
     if any(t in text for t in india_terms):
         score += 15
@@ -999,7 +1006,6 @@ def run_scan():
     log.info(f"  Category: {post_data['category_slug']}  KW: {post_data['focus_keyword']}")
 
     img_bytes = (
-        extract_source_image(best.get("url", ""), best.get("_og_image", "")) or
         fetch_unsplash_image(post_data["focus_keyword"]) or
         fetch_pexels_image(post_data["focus_keyword"]) or
         make_fallback_image(best["title"])
