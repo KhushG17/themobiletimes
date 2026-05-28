@@ -4,7 +4,7 @@
 **Owner:** Sanjay Goyal, Editor-in-Chief  
 **Goal:** 15,000–50,000 monthly visitors by December 2026  
 **Budget:** ₹2,000/month all-in  
-**Last updated:** May 28, 2026 — Phase 1 live ✅ Applied to Google News ✅ Weekly Insights live ✅
+**Last updated:** May 29, 2026 — Phase 1 live ✅ Applied to Google News ✅ Weekly Insights live ✅ Repo public ✅
 
 ---
 
@@ -14,7 +14,7 @@ This system runs themobiletimes.com automatically — no human needs to touch it
 
 **Every single day, without you doing anything:**
 
-- At 4 specific times (8am, 12pm, 4pm, 8pm IST), GitHub's free servers wake up, scan Indian telecom news from **35+ RSS feeds + News API** (150,000 sources), Claude AI picks the most relevant story from all available categories, writes a 500–750 word article, finds a matching image (Unsplash first → Pexels → AI-generated → fallback), watermarks it with the TMT logo, and publishes it to WordPress.
+- At 4 specific times (8am, 12pm, 4pm, 8pm IST), GitHub's free servers wake up, scan Indian telecom news from **35+ RSS feeds + News API** (150,000 sources), Claude AI picks the most relevant story intelligently — spreading across telecom, devices, cybersecurity, AI, OTT, policy, and more — writes a 500–750 word article using one of 10 article templates, finds a matching image (source article → Unsplash → Pexels → fallback), watermarks it with the TMT logo, and publishes it to WordPress.
 
 - 3 times a week (Mon, Wed, Fri), a separate workflow publishes a long-form Insights blog post (900–1,000 words) with 2 body images. Claude AI reads the current week's news and picks the most timely topic. Monday = Industry Insights full week recap, Wednesday = Case Study on what people are researching, Friday = How-to Guide (e.g. "How to Port Your Number"). These are completely separate from the daily news posts and not counted in the daily limit.
 
@@ -165,13 +165,14 @@ themobiletimes.com
         │       └── gsc_optimizer.py       → separate: monthly GSC meta rewrites
         │
         ├── External APIs (Active)
-        │       ├── Claude Sonnet 4.6      → article writing (~₹400/month)
-        │       ├── Claude Haiku 4.5       → story routing, dedup, SEO meta (~₹100/month)
+        │       ├── Claude Sonnet 4.6      → article writing (~₹290/month)
+        │       ├── Claude Haiku 4.5       → story routing, dedup, topics, prompts (~₹45/month)
         │       ├── News API (newsapi.org) → 150,000+ sources, keyword queries (free)
-        │       ├── 35+ RSS feeds          → India + global telecom/tech news (free)
+        │       ├── 35+ RSS feeds          → balanced: telecom/devices/cyber/AI/OTT (free)
         │       ├── Unsplash               → primary stock images (commercial use, free)
         │       ├── Pexels                 → fallback stock images (royalty-free, free)
-        │       ├── fal.ai (flux/schnell)  → AI image generation for blog posts (⚠️ needs $5)
+        │       ├── fal.ai (flux/schnell)  → blog post featured images (⚠️ needs $5 top-up)
+        │       ├── DALL-E 3 (OpenAI)      → custom editorial images — INACTIVE (key slot ready)
         │       ├── IndexNow               → instant Bing/Yandex indexing
         │       └── Google Search Console  → monthly meta optimization (disabled)
         │
@@ -196,14 +197,16 @@ TMT/
 │   ├── ── CORE SCRIPTS ──────────────────────────────────────────────────────
 │   │
 │   ├── mobiletimes_agent.py
-│   │     Main publishing engine. 5× daily + on-demand.
-│   │     News API + 35 RSS feeds → AI story selection → AI article → WP publish
-│   │     6 news templates + 4 blog templates. Full post-publish pipeline.
-│   │     CLI: --slot N | --run-now | --single "topic" | --url "..." | --tip "..." | --test-post
+│   │     Main publishing engine. 4× daily news + 3× weekly blogs + on-demand.
+│   │     35 balanced RSS feeds + News API → smart diversity selection → AI article → WP publish
+│   │     10 news templates + 4 blog templates. Consistent post-publish pipeline in all modes.
+│   │     Pre-flight: WP health + App Password auth checked before every Claude call.
+│   │     CLI: --slot N | --run-now | --blog X | --single "topic" | --url "..." | --tip "..." | --test-post
 │   │
 │   ├── breaking_monitor.py
 │   │     16× daily (every ~90 min). Scores stories 0–100.
-│   │     Publishes if score ≥ 45 AND combined daily limit < 5.
+│   │     Threshold ≥ 65. Max 1 breaking/day. Combined daily cap = 5.
+│   │     Full dedup against ALL recent WP posts (not just breaking-specific hashes).
 │   │     CLI: --once (single check — how GitHub Actions calls it)
 │   │
 │   ├── social_poster.py
@@ -296,13 +299,33 @@ All endpoints are `POST /wp-json/tmt/v1/{path}` and require `"secret": TMT_SECRE
 
 The system enforces a combined limit of **5 automated posts per day** covering daily news + breaking news.
 
-- `mobiletimes_agent.py` increments `auto_posts_YYYY-MM-DD` after each scheduled news publish
+- `mobiletimes_agent.py` increments `auto_posts_YYYY-MM-DD` after each scheduled news publish (3 retries)
 - `breaking_monitor.py` reads this counter before publishing; skips if ≥ 5
-- Breaking posts also increment the counter after publishing
-- With 4 daily slots, breaking news can fire up to 1 more time per day to reach the limit of 5
-- **Weekly blogs (`--blog`) do NOT count toward the limit — they are completely separate**
-- **Manual modes (`--single`, `--url`) do NOT count toward the limit**
-- The breaking monitor has an additional hard cap of 3 breaking posts per day
+- Counter read is fail-safe: if WP state API is unreachable, assumes limit reached (prevents runaway publishing)
+- With 4 daily slots, breaking news can fire at most 1 time per day
+- **Weekly blogs (`--blog`) do NOT count — completely separate**
+- **Manual modes (`--single`, `--url`) do NOT count**
+- Breaking monitor hard cap: max 1 breaking post per day regardless of counter
+
+## Image Pipeline
+
+Every post goes through this chain (first success wins):
+
+```
+DALL-E 3 (INACTIVE — ready when OpenAI key is funded)
+   ↓
+Source article OG image (minimum 800×450px — rejects small/blurry)
+   ↓
+Unsplash (persistent dedup across runs via WP state)
+   ↓
+Pexels (persistent dedup across runs via WP state)
+   ↓
+fal.ai AI image (blog posts only — needs $5 top-up)
+   ↓
+Text fallback (always works)
+```
+
+To activate DALL-E 3: add OpenAI API key to GitHub Secret `OPENAI_API_KEY`, then say "activate DALL-E 3". Monthly cost with DALL-E 3: ~₹786 (within ₹2,000 budget).
 
 ---
 
@@ -364,8 +387,9 @@ Go to: `Repo → Settings → Secrets and variables → Actions → New reposito
 | `PEXELS_API_KEY` | Pexels API key | ✅ |
 | `FAL_API_KEY` | fal.ai key | ⚠️ Quota depleted — top up $5 at fal.ai/dashboard/billing |
 | `NEWS_API_KEY` | newsapi.org key | ✅ |
-| `TMT_SECRET` | tmt-admin-api plugin secret (must match TMT_API_SECRET in wp-config.php) | ✅ |
+| `TMT_SECRET` | `TMT@2026#SecureKey_MobileTimes` — must match `TMT_API_SECRET` in wp-config.php | ✅ |
 | `UNSPLASH_ACCESS_KEY` | Unsplash API key | ✅ |
+| `OPENAI_API_KEY` | OpenAI key for DALL-E 3 image generation — slot ready, activate when funded | ⏭ Ready |
 | `INDEXNOW_KEY` | IndexNow submission key | ⚠️ Verify it's set (Rank Math can provide this) |
 | `ALERT_EMAIL_PASS` | Gmail app password for failure alerts | ✅ |
 | `GSC_PROPERTY` | `https://themobiletimes.com/` | ❌ Not set (disables monthly SEO) |

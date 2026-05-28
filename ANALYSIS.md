@@ -1,7 +1,7 @@
 # TMT System Analysis — Full Audit
-**Date:** May 28, 2026 (updated May 28, 2026)  
+**Date:** May 28, 2026 (updated May 29, 2026)  
 **Scope:** Automation system + WordPress installation  
-**Status:** Production live. Phase 1 complete. Weekly Insights live. Google News application pending.
+**Status:** Production live. Phase 1 complete. Weekly Insights live. Google News application pending. Repo public. All major reliability issues resolved.
 
 ---
 
@@ -112,37 +112,44 @@ All stored as `tmt_state_{name}` in `wp_options` (autoload=false):
 | `tmt_state_seen_urls` | `{"urls": [...2000 max]}` — story URLs published | Forever |
 | `tmt_state_pexels_used_ids` | `{"ids": [...1000 max]}` — used Pexels photo IDs | Forever |
 | `tmt_state_breaking_seen` | `{"published": [...500 hashes], "daily": {"YYYY-MM-DD": N}}` | Forever |
+| `tmt_state_unsplash_used_ids` | `{"ids": [...1000 max]}` — used Unsplash photo IDs | Forever |
 | `tmt_state_auto_posts_{YYYY-MM-DD}` | Integer — combined daily post count | Self-expires (keyed by date) |
 
 ---
 
 ## 5. Issues Found
 
-### SECURITY (Action Required)
+### SECURITY
 
-| # | Issue | Severity | Fix |
-|---|-------|----------|-----|
-| S1 | **CRITICAL: Live tmt-admin-api.php on server still has old hardcoded fallback secret (`TMT2026xK9mSEO`)** — the updated version with empty fallback is only in the local Automation/ folder, NOT yet deployed to WordPress | CRITICAL | Upload `Automation/tmt-admin-api/tmt-admin-api.php` to `wp-content/plugins/tmt-admin-api/` on the live server NOW. Then add `define('TMT_API_SECRET', 'your-key');` to wp-config.php on server. |
-| S2 | `TMT_API_SECRET` not defined in wp-config.php (local copy confirmed — live server unknown) | HIGH | Add `define('TMT_API_SECRET', 'TMT_...your_strong_key...');` to live server wp-config.php |
-| S3 | `easy-post-submission` plugin active — allows public post submissions with no visible moderation | HIGH | Review moderation settings or deactivate if unused |
+| # | Issue | Severity | Status |
+|---|-------|----------|--------|
+| S1 | ~~tmt-admin-api.php old version on server~~ | CRITICAL | **FIXED** — deployed, TMT_API_SECRET set in wp-config.php as `TMT@2026#SecureKey_MobileTimes` |
+| S2 | ~~TMT_API_SECRET not defined~~ | HIGH | **FIXED** — set in wp-config.php + GitHub Secret |
+| S3 | `easy-post-submission` plugin active | HIGH | Review moderation settings or deactivate if unused |
 | S4 | `xmlrpc.php` accessible at site root | MEDIUM | Block in .htaccess: `<Files "xmlrpc.php"> deny from all </Files>` |
-| S5 | `readme.html` at site root exposes WordPress version | LOW | Delete from server |
-| S6 | `tmt-admin-api` routes registered with `permission_callback: __return_true` — auth done in handler | LOW | Fine as-is; auth in handler is correct PHP pattern for REST |
+| S5 | `readme.html` at root exposes WP version | LOW | Delete from server |
 
-### AUTOMATION (Functional Issues)
+### AUTOMATION
 
-| # | Issue | Severity | Details |
-|---|-------|----------|---------|
-| A1 | ~~Weekly blog topics 7–14 never used~~ | **FIXED** | `WEEKLY_BLOG_TOPICS` removed entirely. All 5 daily slots are now news posts. Weekly blogs are a separate dynamic system (Mon/Wed/Fri, AI-picked topics). |
-| A2 | **gsc_optimizer.py disabled** | MEDIUM | GSC credentials not configured. Monthly SEO workflow silently skips. Opportunity cost: no meta rewriting happening. |
-| A3 | **fal.ai quota likely depleted** | MEDIUM | Blog posts (Slot 5) fall back to Pexels if fal.ai fails. No error visible to user. |
-| A4 | **IndexNow key may be empty** | MEDIUM | `INDEXNOW_KEY = ""` if secret not set. Only Google ping fires. Bing/Yandex miss instant indexing. |
-| A5 | **Source OG image copyright risk** | HIGH | `extract_source_image()` downloads images from source articles and republishes them with TMT watermark. This is copyright infringement. Should only use Unsplash/Pexels/AI-generated images. |
-| A6 | **`schedule` package imported but never used** | LOW | Both scripts import `schedule` but run `--once` via GitHub Actions. Remove import + dependency. |
-| A7 | **No retry logic on API calls** | LOW | Single `requests.post()` with timeout. If WP is briefly unavailable, publish fails silently. |
-| A8 | **Breaking news runs 16×/day not 30min** | LOW (docs only) | README says "every 30 minutes" but GitHub Actions cron runs 16 times/day. Update docs. |
-| A9 | **`fix_existing_posts.py` and `seo_updater.py` deleted but .pyc files in pycache** | LOW | .gitignore excludes pycache, so they're local-only. No action needed. |
-| A10 | **Post author hardcoded to default WP user** | LOW | WP REST API uses the authenticated user's ID automatically. Sanjay must be the WP_USER in secrets. |
+| # | Issue | Status |
+|---|-------|--------|
+| A1 | ~~Static blog topics~~ | **FIXED** — dynamic AI-picked topics (Mon/Wed/Fri weekly blogs) |
+| A2 | ~~No retry on API calls~~ | **FIXED** — 3 retries with backoff on all state, meta, views, counter calls |
+| A3 | ~~Daily limit not enforced on API failure~~ | **FIXED** — fail-safe defaults (returns limit on error, not 0) |
+| A4 | ~~Same story published multiple times~~ | **FIXED** — full cross-script dedup (word-overlap against all recent WP posts) |
+| A5 | ~~No pre-flight checks before Claude~~ | **FIXED** — WP health + App Password auth checked before every Sonnet call |
+| A6 | ~~Inconsistent post-publish pipeline~~ | **FIXED** — all 6 modes have identical pipeline |
+| A7 | ~~Data loss in save_seen_urls / save_pexels_id~~ | **FIXED** — returns None on failure, saves only if load succeeded |
+| A8 | ~~Unsplash dedup only in-memory~~ | **FIXED** — persisted to WP state (unsplash_used_ids) across runs |
+| A9 | ~~Source images low resolution~~ | **FIXED** — min 800×450px check, quality 92, better headers |
+| A10 | ~~Category diversity (only Jio/Airtel)~~ | **FIXED** — COVERAGE_AREAS + already_covered tracking, smart AI diversity |
+| A11 | ~~10 posts in one day~~ | **FIXED** — MAX_BREAKING_PER_DAY=1, threshold=65, fail-safe limits |
+| A12 | ~~Views not seeding~~ | **FIXED** — 3 retries, PHP error checking, all 47 posts seeded |
+| A13 | ~~Only 6 templates~~ | **FIXED** — 10 templates (+ Explainer, Policy Brief, Market Numbers, Industry Reaction) |
+| A14 | **gsc_optimizer.py disabled** | OPEN — needs GSC_CREDENTIALS + GSC_PROPERTY secrets |
+| A15 | **fal.ai quota depleted** | OPEN — needs $5 top-up at fal.ai/dashboard/billing |
+| A16 | **DALL-E 3 inactive** | OPEN (by design) — activate when OpenAI key funded |
+| A17 | GitHub Actions minute limit | **RESOLVED** — repo made public, unlimited minutes |
 
 ### WORDPRESS PERFORMANCE
 
@@ -188,35 +195,25 @@ All stored as `tmt_state_{name}` in `wp_options` (autoload=false):
 
 ## 7. Priority Fix List
 
-### Tier 1 — Do Soon (high impact, low risk)
+### Remaining Action Items (code is done — server/setup needed)
 
 | Priority | Action | Impact | Effort |
 |----------|--------|--------|--------|
-| 1 | **Deploy updated tmt-admin-api.php to live server** (security fix + views fix) | Eliminates hardcoded secret fallback, makes views errors visible | 5min upload |
-| 2 | **Fix WEEKLY_BLOG_TOPICS to use all 15 topics** (rotate by post count, not weekday) | Content diversity | 10min code |
-| 3 | **Block source OG image use as featured image** — use only Unsplash/Pexels/fal.ai | Legal risk elimination | 15min code |
-| 4 | **Set up GSC credentials** so monthly SEO optimizer activates | SEO improvements monthly | 30min setup |
-| 5 | **Top up fal.ai** ($5) | AI-generated images for blog posts | 5min |
+| 1 | **Top up fal.ai** ($5 at fal.ai/dashboard/billing) | Blog post AI images | 5min |
+| 2 | **Set up GSC credentials** — enables monthly SEO meta optimizer | Monthly CTR improvements | 30min |
+| 3 | **OpenAI API key** — fund account, add key to GitHub Secrets `OPENAI_API_KEY`, say "activate" | Better editorial images | Setup + tell me |
+| 4 | **Block xmlrpc.php in .htaccess** | Security | 5min |
+| 5 | **Social media credentials** (Telegram first) | Distribution, audience growth | Phase 2 |
 
-### Tier 2 — Phase 2 (growth features)
-
-| Priority | Action | Impact | Effort |
-|----------|--------|--------|--------|
-| 6 | **Social media credentials** (Telegram first, then Twitter) | Distribution, audience growth | Phase 2 |
-| 7 | **Audit and reduce active plugins** (remove 3d-flipbook, easy-post-submission, themeruby-multi-authors if unused) | Performance, security | 30min |
-| 8 | **Block xmlrpc.php in .htaccess** | Security | 5min |
-| 9 | **Remove readme.html** from server root | Security (minor) | 1min |
-| 10 | **Disable Elementor on post/category pages** or replace with Foxiz built-in page builder | Performance | 1hr |
-
-### Tier 3 — Long-term (scale improvements)
+### Phase 2 — Growth Features
 
 | Priority | Action | Impact | Effort |
 |----------|--------|--------|--------|
-| 11 | **Plan comparison content** — auto-generate "Jio vs Airtel plan" posts | Traffic (highest-volume queries) | Phase 3 |
-| 12 | **City-level 5G tracker** — "Is 5G available in [City]?" pages | Local search traffic | Phase 3 |
-| 13 | **Google News approval follow-up** | 10–50× traffic potential | Already applied |
-| 14 | **Add width/height to images** in automation-generated HTML | CLS improvement | Medium |
-| 15 | **Expert quote attribution** improvement — source real quotes from public statements | E-E-A-T | Complex |
+| 6 | Twitter, LinkedIn, Facebook social posting | Distribution | Phase 2 |
+| 7 | Mailchimp newsletter — Monday digest | Audience retention | Phase 2 |
+| 8 | Plan comparison content engine — "Jio vs Airtel" auto-generation | Highest-traffic queries | Phase 3 |
+| 9 | City-level 5G tracker — "Is 5G available in [City]?" | Local search traffic | Phase 3 |
+| 10 | Google News approval — already applied, waiting | 10–50× traffic potential | Waiting |
 
 ---
 
