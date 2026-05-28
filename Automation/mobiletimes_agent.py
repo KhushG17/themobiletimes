@@ -2129,8 +2129,7 @@ def save_rank_math_meta(post_id: int, post_data: dict):
     log.error(f"  Rank Math meta gave up after 3 attempts for post {post_id}")
 
 def check_wp_health() -> bool:
-    """Verify WordPress is reachable and authenticated before spending Anthropic credits.
-    Returns True if safe to proceed, False if WP is down or rejecting auth."""
+    """Verify tmt-admin-api is reachable and secret is accepted."""
     for attempt in range(3):
         try:
             r = requests.post(
@@ -2145,8 +2144,44 @@ def check_wp_health() -> bool:
             log.warning(f"WP health check error attempt {attempt+1}/3: {e}")
         if attempt < 2:
             time.sleep(5)
-    log.error("WordPress is unreachable — aborting to avoid wasting API credits")
+    log.error("WordPress tmt-admin-api unreachable — aborting")
     return False
+
+
+def check_wp_auth() -> bool:
+    """Verify WP Application Password works — needed for post creation and media upload."""
+    for attempt in range(3):
+        try:
+            r = requests.get(
+                f"{WP_URL}/wp-json/wp/v2/users/me",
+                headers={"Authorization": f"Basic {creds}"},
+                timeout=8,
+            )
+            if r.ok:
+                return True
+            if r.status_code in (401, 403):
+                log.error(
+                    f"WP Application Password rejected (HTTP {r.status_code}). "
+                    "Check WP_APP_PASS GitHub Secret — aborting to save API credits."
+                )
+                return False  # Auth failure — no point retrying
+            log.warning(f"WP auth check HTTP {r.status_code} attempt {attempt+1}/3")
+        except Exception as e:
+            log.warning(f"WP auth check error attempt {attempt+1}/3: {e}")
+        if attempt < 2:
+            time.sleep(5)
+    log.error("WP auth check failed 3× — aborting to save API credits")
+    return False
+
+
+def pre_publish_checks() -> bool:
+    """All pre-flight checks before spending Anthropic credits.
+    Checks both the tmt-admin-api secret AND the WP Application Password."""
+    if not check_wp_health():
+        return False
+    if not check_wp_auth():
+        return False
+    return True
 
 
 def publish_post(post_data: dict, featured_media_id: int | None,
@@ -2318,8 +2353,8 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             log.error(f"Slot {slot} — story selection failed, aborting")
             return
 
-        # Pre-flight: verify WordPress is up before spending Anthropic credits
-        if not check_wp_health():
+        # Pre-flight: verify WordPress is up and auth works before spending Anthropic credits
+        if not pre_publish_checks():
             return
 
         post_type = "exclusive" if story.get("type") == "exclusive" else "news"
@@ -2426,9 +2461,9 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     published = []
     today_str = now_ist.strftime("%Y-%m-%d")
 
-    # Pre-flight: verify WordPress is up before spending Anthropic credits
-    if not check_wp_health():
-        log.error("WordPress health check failed — aborting batch run")
+    # Pre-flight: verify WordPress is up and auth works before spending Anthropic credits
+    if not pre_publish_checks():
+        log.error("Pre-publish checks failed — aborting batch run")
         return
 
     # Step 5: Generate and publish 4 news posts
@@ -2555,8 +2590,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.url:
-        if not check_wp_health():
-            log.error("WordPress health check failed — aborting")
+        if not pre_publish_checks():
+            log.error("Pre-publish checks failed — aborting")
             sys.exit(1)
         _recent_posts_cache = get_recent_posts()
         source_url = args.url
@@ -2574,21 +2609,48 @@ if __name__ == "__main__":
             "focus_keyword": " ".join(story["title"].split()[:4]),
         })
         log.info(f"  Source title: {story['title'][:70]}")
-        post_data = generate_news_post(story, date_str)
+        post_data = None
+        for attempt in range(2):
+            try:
+                post_data = generate_news_post(story, date_str)
+                break
+            except ValueError as e:
+                if attempt == 0:
+                    log.warning(f"  Article QA failed (attempt 1) — retrying: {e}")
+                    time.sleep(3)
+                else:
+                    log.error(f"  Article QA failed twice — aborting: {e}")
+                    sys.exit(1)
+        if not post_data:
+            sys.exit(1)
         log.info(f"  Generated title: {post_data['title']}")
+        today_str = datetime.now(IST).strftime("%Y-%m-%d")
+        url_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
         img = (
             fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(story["title"])
         )
-        url_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
-        media_id, _ = upload_image_to_wp(img, f"{url_kw_fn}-rewrite.jpg", post_data["focus_keyword"])
+        media_id, _ = upload_image_to_wp(img, f"{url_kw_fn}-{today_str}.jpg", post_data["focus_keyword"])
+        # Body image — same as daily slots
+        body_search = _CAT_TO_SEARCH.get(post_data.get("category_slug", ""), "India telecom technology")
+        body_bytes = fetch_unsplash_image(body_search, watermark=True) or fetch_pexels_image(body_search, watermark=True)
+        if body_bytes:
+            _, body_url = upload_image_to_wp(body_bytes, f"{url_kw_fn}-body-{today_str}.jpg",
+                                              alt=f"{post_data['focus_keyword']} | The Mobile Times",
+                                              img_title=post_data["focus_keyword"])
+            if body_url:
+                post_data["content"] = inject_body_image_html(post_data["content"], body_url,
+                                                               f"{post_data['focus_keyword']} | The Mobile Times")
         result = publish_post(post_data, media_id, sticky=False)
         if result:
             post_url = result.get("url", result.get("link", ""))
             log.info(f"  Published: {post_url}")
             ping_indexing(post_url)
             seed_post_views(result.get("id"))
+            # Save source URL to dedup so the same article isn't rewritten again
+            if source_url and source_url != WP_URL:
+                save_seen_urls({source_url})
             try:
                 from social_poster import post_to_all
                 post_to_all(post_data["title"], post_url, post_data["tags"], category=post_data["category_slug"])
@@ -2598,8 +2660,8 @@ if __name__ == "__main__":
             log.error("  Publish failed")
 
     elif args.single:
-        if not check_wp_health():
-            log.error("WordPress health check failed — aborting")
+        if not pre_publish_checks():
+            log.error("Pre-publish checks failed — aborting")
             sys.exit(1)
         _recent_posts_cache = get_recent_posts()
         topic    = args.single
@@ -2617,16 +2679,40 @@ if __name__ == "__main__":
             "is_breaking":    False,
             "focus_keyword":  " ".join(topic.split()[:4]),
         }
-        post_data = generate_news_post(story, date_str)
+        post_data = None
+        for attempt in range(2):
+            try:
+                post_data = generate_news_post(story, date_str)
+                break
+            except ValueError as e:
+                if attempt == 0:
+                    log.warning(f"  Article QA failed (attempt 1) — retrying: {e}")
+                    time.sleep(3)
+                else:
+                    log.error(f"  Article QA failed twice — aborting: {e}")
+                    sys.exit(1)
+        if not post_data:
+            sys.exit(1)
         log.info(f"  Generated title: {post_data['title']}")
+        today_str = datetime.now(IST).strftime("%Y-%m-%d")
+        single_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
         img = (
             fetch_unsplash_image(post_data["focus_keyword"]) or
             fetch_pexels_image(post_data["focus_keyword"]) or
             make_fallback_image(topic)
         )
-        single_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
-        media_id, _ = upload_image_to_wp(img, f"{single_kw_fn}.jpg", post_data["focus_keyword"])
-        result   = publish_post(post_data, media_id, sticky=False)
+        media_id, _ = upload_image_to_wp(img, f"{single_kw_fn}-{today_str}.jpg", post_data["focus_keyword"])
+        # Body image — same as daily slots
+        body_search = _CAT_TO_SEARCH.get(post_data.get("category_slug", ""), "India telecom technology")
+        body_bytes = fetch_unsplash_image(body_search, watermark=True) or fetch_pexels_image(body_search, watermark=True)
+        if body_bytes:
+            _, body_url = upload_image_to_wp(body_bytes, f"{single_kw_fn}-body-{today_str}.jpg",
+                                              alt=f"{post_data['focus_keyword']} | The Mobile Times",
+                                              img_title=post_data["focus_keyword"])
+            if body_url:
+                post_data["content"] = inject_body_image_html(post_data["content"], body_url,
+                                                               f"{post_data['focus_keyword']} | The Mobile Times")
+        result = publish_post(post_data, media_id, sticky=False)
         if result:
             post_url = result.get("url", result.get("link", ""))
             log.info(f"  Published: {post_url}")
@@ -2658,9 +2744,9 @@ if __name__ == "__main__":
         topic = pick_blog_topic(subcategory, stories)
         log.info(f"  Topic: {topic[:70]}")
 
-        # Pre-flight: verify WordPress is up before spending Anthropic credits
-        if not check_wp_health():
-            log.error("WordPress health check failed — aborting blog post")
+        # Pre-flight: verify WordPress is up and auth works before spending Anthropic credits
+        if not pre_publish_checks():
+            log.error("Pre-publish checks failed — aborting blog post")
             sys.exit(1)
 
         post_data = None

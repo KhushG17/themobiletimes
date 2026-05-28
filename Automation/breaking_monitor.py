@@ -750,24 +750,36 @@ META_JSON:{{"article_title":"[title]","slug":"[slug]-2026","focus_keyword":"[2-4
 # ─── WordPress Publishing ─────────────────────────────────────────────────────
 
 def save_rank_math_meta(post_id: int, post_data: dict):
-    requests.post(
-        f"{WP_URL}/wp-json/tmt/v1/update-meta",
-        json={
-            "secret":     TMT_SECRET,
-            "objectID":   post_id,
-            "objectType": "post",
-            "meta": {
-                "rank_math_title":               post_data["meta_title"],
-                "rank_math_description":         post_data["meta_description"],
-                "rank_math_focus_keyword":       post_data["focus_keyword"],
-                "rank_math_og_title":            post_data["og_title"],
-                "rank_math_og_description":      post_data["og_description"],
-                "rank_math_twitter_title":       post_data["og_title"],
-                "rank_math_twitter_description": post_data["og_description"],
-            },
+    """Save Rank Math SEO meta. Retries 3× with backoff."""
+    payload = {
+        "secret":     TMT_SECRET,
+        "objectID":   post_id,
+        "objectType": "post",
+        "meta": {
+            "rank_math_title":               post_data["meta_title"],
+            "rank_math_description":         post_data["meta_description"],
+            "rank_math_focus_keyword":       post_data["focus_keyword"],
+            "rank_math_og_title":            post_data["og_title"],
+            "rank_math_og_description":      post_data["og_description"],
+            "rank_math_twitter_title":       post_data["og_title"],
+            "rank_math_twitter_description": post_data["og_description"],
         },
-        timeout=15,
-    )
+    }
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/update-meta",
+                json=payload, timeout=12,
+            )
+            if r.ok:
+                log.info(f"  Rank Math meta saved for post {post_id}")
+                return
+            log.warning(f"  Rank Math meta failed ({r.status_code}) attempt {attempt+1}/3")
+        except Exception as e:
+            log.warning(f"  Rank Math meta error attempt {attempt+1}/3: {e}")
+        if attempt < 2:
+            time.sleep(3)
+    log.error(f"  Rank Math meta gave up after 3 attempts for post {post_id}")
 
 def publish_breaking_post(post_data: dict, media_id: int | None) -> dict | None:
     cat_id  = BREAKING_CATEGORY_IDS.get(post_data["category_slug"], BREAKING_CATEGORY_IDS["industry-trends"])
@@ -896,7 +908,7 @@ def is_duplicate(story_title: str, published: set, threshold: float = 0.45) -> b
 
 
 def check_wp_health() -> bool:
-    """Verify WordPress is reachable before spending Anthropic credits."""
+    """Verify tmt-admin-api is reachable and secret is accepted."""
     for attempt in range(3):
         try:
             r = requests.post(
@@ -911,8 +923,43 @@ def check_wp_health() -> bool:
             log.warning(f"WP health check error attempt {attempt+1}/3: {e}")
         if attempt < 2:
             time.sleep(5)
-    log.error("WordPress unreachable — aborting to avoid wasting API credits")
+    log.error("WordPress tmt-admin-api unreachable — aborting")
     return False
+
+
+def check_wp_auth() -> bool:
+    """Verify WP Application Password works — needed for post creation and media upload."""
+    for attempt in range(3):
+        try:
+            r = requests.get(
+                f"{WP_URL}/wp-json/wp/v2/users/me",
+                headers=WP_HDR,
+                timeout=8,
+            )
+            if r.ok:
+                return True
+            if r.status_code in (401, 403):
+                log.error(
+                    f"WP Application Password rejected (HTTP {r.status_code}). "
+                    "Check WP_APP_PASS GitHub Secret — aborting."
+                )
+                return False
+            log.warning(f"WP auth check HTTP {r.status_code} attempt {attempt+1}/3")
+        except Exception as e:
+            log.warning(f"WP auth check error attempt {attempt+1}/3: {e}")
+        if attempt < 2:
+            time.sleep(5)
+    log.error("WP auth check failed 3× — aborting to save API credits")
+    return False
+
+
+def pre_publish_checks() -> bool:
+    """All pre-flight checks before spending Anthropic credits."""
+    if not check_wp_health():
+        return False
+    if not check_wp_auth():
+        return False
+    return True
 
 
 def ping_indexing(post_url: str):
@@ -984,8 +1031,8 @@ def run_scan():
     best = scored[0][1]
     log.info(f"Breaking story selected: {best['title'][:70]}")
 
-    # Pre-flight: verify WordPress is up before spending Anthropic credits
-    if not check_wp_health():
+    # Pre-flight: verify WordPress is up and auth works before spending Anthropic credits
+    if not pre_publish_checks():
         return
 
     post_data = None
