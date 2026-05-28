@@ -888,6 +888,26 @@ def is_duplicate(story_title: str, published: set, threshold: float = 0.45) -> b
     return False
 
 
+def check_wp_health() -> bool:
+    """Verify WordPress is reachable before spending Anthropic credits."""
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/health",
+                json={"secret": TMT_SECRET},
+                timeout=10,
+            )
+            if r.ok:
+                return True
+            log.warning(f"WP health check failed (HTTP {r.status_code}) attempt {attempt+1}/3")
+        except Exception as e:
+            log.warning(f"WP health check error attempt {attempt+1}/3: {e}")
+        if attempt < 2:
+            time.sleep(5)
+    log.error("WordPress unreachable — aborting to avoid wasting API credits")
+    return False
+
+
 def ping_indexing(post_url: str):
     try:
         if INDEXNOW_KEY:
@@ -957,7 +977,24 @@ def run_scan():
     best = scored[0][1]
     log.info(f"Breaking story selected: {best['title'][:70]}")
 
-    post_data = generate_breaking_post(best, date_str)
+    # Pre-flight: verify WordPress is up before spending Anthropic credits
+    if not check_wp_health():
+        return
+
+    post_data = None
+    for attempt in range(2):
+        try:
+            post_data = generate_breaking_post(best, date_str)
+            break
+        except ValueError as e:
+            if attempt == 0:
+                log.warning(f"  Article QA failed (attempt 1) — retrying: {e}")
+                time.sleep(3)
+            else:
+                log.error(f"  Article QA failed twice — aborting this scan: {e}")
+                return
+    if not post_data:
+        return
     log.info(f"  Title: {post_data['title'][:70]}")
     log.info(f"  Category: {post_data['category_slug']}  KW: {post_data['focus_keyword']}")
 

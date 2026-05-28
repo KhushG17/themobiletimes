@@ -2014,6 +2014,27 @@ def save_rank_math_meta(post_id: int, post_data: dict):
     else:
         log.warning(f"  Rank Math meta save failed ({r.status_code})")
 
+def check_wp_health() -> bool:
+    """Verify WordPress is reachable and authenticated before spending Anthropic credits.
+    Returns True if safe to proceed, False if WP is down or rejecting auth."""
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/health",
+                json={"secret": TMT_SECRET},
+                timeout=10,
+            )
+            if r.ok:
+                return True
+            log.warning(f"WP health check failed (HTTP {r.status_code}) attempt {attempt+1}/3")
+        except Exception as e:
+            log.warning(f"WP health check error attempt {attempt+1}/3: {e}")
+        if attempt < 2:
+            time.sleep(5)
+    log.error("WordPress is unreachable — aborting to avoid wasting API credits")
+    return False
+
+
 def publish_post(post_data: dict, featured_media_id: int | None,
                  sticky: bool = False, draft: bool = False, slot_idx: int = 0) -> dict | None:
     cat_id  = CATEGORY_IDS.get(post_data["category_slug"], CATEGORY_IDS["tech-innovation"])
@@ -2159,9 +2180,26 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             log.error(f"Slot {slot} — story selection failed, aborting")
             return
 
+        # Pre-flight: verify WordPress is up before spending Anthropic credits
+        if not check_wp_health():
+            return
+
         post_type = "exclusive" if story.get("type") == "exclusive" else "news"
         log.info(f"Slot {slot} — generating {post_type} post: {story['title'][:60]}...")
-        post_data = generate_news_post(story, date_str)
+        post_data = None
+        for attempt in range(2):
+            try:
+                post_data = generate_news_post(story, date_str)
+                break
+            except ValueError as e:
+                if attempt == 0:
+                    log.warning(f"  Article QA failed (attempt 1) — retrying: {e}")
+                    time.sleep(3)
+                else:
+                    log.error(f"  Article QA failed twice — aborting slot: {e}")
+                    return
+        if not post_data:
+            return
 
         img_bytes = (
             extract_source_image(story.get("url", ""), story.get("_og_image", "")) or
@@ -2251,12 +2289,29 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     published = []
     today_str = now_ist.strftime("%Y-%m-%d")
 
+    # Pre-flight: verify WordPress is up before spending Anthropic credits
+    if not check_wp_health():
+        log.error("WordPress health check failed — aborting batch run")
+        return
+
     # Step 5: Generate and publish 4 news posts
     for i, story in enumerate(selected):
         post_type = "exclusive" if story.get("type") == "exclusive" else "news"
         log.info(f"Generating post {i+1}/4: {story['title'][:60]}...")
 
-        post_data = generate_news_post(story, date_str)
+        post_data = None
+        for attempt in range(2):
+            try:
+                post_data = generate_news_post(story, date_str)
+                break
+            except ValueError as e:
+                if attempt == 0:
+                    log.warning(f"  Article QA failed (attempt 1) — retrying: {e}")
+                    time.sleep(3)
+                else:
+                    log.error(f"  Article QA failed twice — skipping post {i+1}: {e}")
+        if not post_data:
+            continue
 
         img_bytes = (
             extract_source_image(story.get("url", "")) or
@@ -2461,7 +2516,25 @@ if __name__ == "__main__":
         topic = pick_blog_topic(subcategory, stories)
         log.info(f"  Topic: {topic[:70]}")
 
-        post_data = generate_blog_post(topic, subcategory, date_str)
+        # Pre-flight: verify WordPress is up before spending Anthropic credits
+        if not check_wp_health():
+            log.error("WordPress health check failed — aborting blog post")
+            sys.exit(1)
+
+        post_data = None
+        for attempt in range(2):
+            try:
+                post_data = generate_blog_post(topic, subcategory, date_str)
+                break
+            except ValueError as e:
+                if attempt == 0:
+                    log.warning(f"  Blog QA failed (attempt 1) — retrying: {e}")
+                    time.sleep(3)
+                else:
+                    log.error(f"  Blog QA failed twice — aborting: {e}")
+                    sys.exit(1)
+        if not post_data:
+            sys.exit(1)
         log.info(f"  Generated title: {post_data['title']}")
 
         img = (
