@@ -171,23 +171,55 @@ TAG_IDS = {
 NEWS_WORD_TARGET  = "600-750"   # news articles: punchy, scannable
 BLOG_WORD_TARGET  = "900-1000"  # blog/insights: authoritative long-form
 
-WEEKLY_BLOG_TOPICS = {
-    0: ("Jio vs Airtel 2026: Who Is Really Winning the Indian Telecom War?",                "industry-insights"),
-    1: ("Why India's 5G Rollout Is Slower Than Promised — And What Must Change",            "industry-insights"),
-    2: ("BSNL's Revival Plan: A Genuine Comeback or Too Little Too Late?",                  "case-studies"),
-    3: ("How AI Is Reshaping Customer Service Across Indian Telecom in 2026",               "industry-insights"),
-    4: ("The OTT Battleground: Can Indian Platforms Beat Netflix and Amazon?",              "industry-insights"),
-    5: ("Satellite Internet in India: Starlink, OneWeb and Rural Connectivity 2026",        "industry-insights"),
-    6: ("India's Smartphone Market in 2026: Rise of Premium, Fall of Budget Phones",        "industry-insights"),
-    7: ("5G vs Wi-Fi 7 in India: Which Will Define Connectivity in 2026?",                  "industry-insights"),
-    8: ("Why India's Cybersecurity Spending Must Triple by 2027",                            "industry-insights"),
-    9: ("TRAI's New Rules in 2026: Winners, Losers, and What Changes for You",              "policy-updates"),
-    10: ("How Indian Startups Are Beating Big Telcos at Their Own Game",                     "industry-insights"),
-    11: ("The Hidden Cost of India's Data Boom: Infrastructure, Energy, and Water",         "case-studies"),
-    12: ("Reliance Jio's Next Big Bet: What the Market Is Missing",                         "market-trends"),
-    13: ("Edge Computing in India: The Silent Revolution Operators Are Ignoring",           "industry-insights"),
-    14: ("India's IoT Market Will Hit $35 Billion by 2026 — Who Captures It?",             "industry-insights"),
+BLOG_SUBCATEGORY_CONTEXT = {
+    "industry-insights": (
+        "a strategic analysis or opinion piece on a major trend, development, or shift "
+        "in Indian telecom this week. Cover something meaningful that happened or is about "
+        "to happen. Should give telecom professionals a clear perspective they can't get "
+        "from regular news coverage."
+    ),
+    "case-studies": (
+        "a deep-dive case study on a specific company, product, strategic decision, or "
+        "campaign in Indian telecom. Focus on what happened, why they did it, what worked "
+        "or failed, and what other operators or businesses can learn from it."
+    ),
+    "how-to-guides": (
+        "a practical, step-by-step guide that helps Indian consumers or telecom "
+        "professionals do something specific — like porting a number, picking the best 5G "
+        "plan, securing their mobile account, activating a service, or understanding a "
+        "TRAI rule. Should be immediately useful and actionable."
+    ),
 }
+
+
+def pick_blog_topic(subcategory: str, stories: list[dict]) -> str:
+    """Ask Claude Haiku to suggest the best blog topic for this subcategory based on current news."""
+    context = BLOG_SUBCATEGORY_CONTEXT.get(subcategory, "an insights article about Indian telecom")
+    headlines = "\n".join(f"- {s['title']}" for s in stories[:40])
+    prompt = f"""You are the editor of The Mobile Times, India's leading telecom publication.
+
+Based on what is happening in Indian telecom RIGHT NOW (see headlines below), suggest the single best topic for {context}
+
+Recent headlines:
+{headlines}
+
+Rules:
+- Topic must be directly relevant to India's telecom or tech industry
+- Must be something people will actually search for
+- For industry-insights: pick the most strategically interesting angle from this week's news
+- For case-studies: pick a specific company or situation with clear lessons
+- For how-to-guides: pick a practical action that consumers need right now
+
+Respond with ONLY the topic title. No quotes, no explanation. 55-75 characters."""
+
+    resp = anthropic_client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=100,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    topic = resp.content[0].text.strip().strip('"').strip("'")
+    log.info(f"  AI-selected blog topic: {topic}")
+    return topic
 
 RSS_FEEDS = [
     # ── India telecom & tech (primary) ───────────────────────────────────────
@@ -1003,7 +1035,7 @@ Respond with JSON only — no extra text:
 
 
 def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
-    """Select 4 best stories with dynamic category assignment — no fixed slot constraints."""
+    """Select 5 best stories with dynamic category assignment — no fixed slot constraints."""
     if not stories:
         return []
 
@@ -1017,36 +1049,37 @@ def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
 
 Today's trending keywords: {', '.join(trending)}
 
-Pick the 4 BEST, most newsworthy stories. Rules:
+Pick the 5 BEST, most newsworthy stories. Rules:
 
-- type: always "news" for all 4
+- type: always "news" for all 5
 - category: assign each story to its BEST fitting category from this full list:
   {ALL_NEWS_CATEGORIES}
-- Try to pick stories from DIFFERENT categories (diversity — don't pick 4 5G stories)
+- Try to pick stories from DIFFERENT categories (diversity — don't pick 5 5G stories)
 - Prioritise India-relevant stories
-- Each story used exactly once (no duplicates across the 4 slots)
+- Each story used exactly once (no duplicates across the 5 slots)
 - tags: exactly ONE per story from: trending, breaking-news, new-launch
     "breaking-news" = urgent, just happened, major immediate impact
     "new-launch"    = product/service/policy launch or major announcement
     "trending"      = default for anything else notable
-- is_breaking: true only if genuinely urgent breaking news (max 1 across all 4)
+- is_breaking: true only if genuinely urgent breaking news (max 1 across all 5)
 - focus_keyword: 2-4 word SEO keyword from the story
 - "cred" is source credibility (0–100). Prefer higher-credibility sources when stories are otherwise equal. Never sacrifice relevance or diversity for credibility.
 
 Stories:
 {stories_json}
 
-Respond with a JSON array of exactly 4 objects. Output ONLY the JSON array:
+Respond with a JSON array of exactly 5 objects. Output ONLY the JSON array:
 [
   {{"slot":1,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}},
   {{"slot":2,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}},
   {{"slot":3,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}},
-  {{"slot":4,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}}
+  {{"slot":4,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}},
+  {{"slot":5,"index":<i>,"type":"news","category":"<slug>","tags":["<tag>"],"is_breaking":false,"focus_keyword":"<kw>"}}
 ]"""
 
     r = anthropic_client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=600,
+        max_tokens=700,
         messages=[{"role": "user", "content": prompt}]
     )
     try:
@@ -1064,22 +1097,21 @@ Respond with a JSON array of exactly 4 objects. Output ONLY the JSON array:
                 idx = 0
             story = stories[idx].copy()
             story.update(meta)
-            # Enforce type=news, exactly ONE valid tag, valid category
             story["type"] = "news"
             tags = [t for t in story.get("tags", []) if t in TAG_IDS]
             story["tags"] = [tags[0]] if tags else ["trending"]
             if story.get("category") not in CATEGORY_IDS:
                 story["category"] = "industry-trends"
             result.append(story)
-        return result[:4]
+        return result[:5]
     except Exception as e:
         log.error(f"Story selection parse failed: {e}")
         fallback_cats = ["policy-updates", "ai-machine-learning",
-                         "smartphones-tablets", "5g-networks"]
+                         "smartphones-tablets", "5g-networks", "industry-trends"]
         return [{**stories[i], "type": "news", "category": fallback_cats[i],
                  "tags": ["trending"], "is_breaking": False,
                  "focus_keyword": "India telecom news"}
-                for i in range(min(4, len(stories)))]
+                for i in range(min(5, len(stories)))]
 
 
 # ─── Content Generation ───────────────────────────────────────────────────────
@@ -1938,7 +1970,6 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     _seen_urls = load_seen_urls()
     now_ist   = datetime.now(IST)
     date_str  = now_ist.isoformat()
-    today_idx = now_ist.weekday()  # 0=Monday
 
     log.info("=" * 60)
     if slot:
@@ -1953,63 +1984,7 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
     if slot is not None:
         today_str = now_ist.strftime("%Y-%m-%d")
 
-        if slot == 5:
-            # Blog / Insights post
-            blog_topic, blog_subcat = WEEKLY_BLOG_TOPICS.get(today_idx, WEEKLY_BLOG_TOPICS[0])
-            log.info(f"Slot 5 — blog topic: {blog_topic}")
-            blog_data = generate_blog_post(blog_topic, blog_subcat, date_str)
-            blog_img = (
-                fetch_fal_image(blog_topic) or
-                fetch_unsplash_image(blog_data["focus_keyword"]) or
-                fetch_pexels_image(blog_topic.split(":")[0]) or
-                make_fallback_image(blog_topic)
-            )
-            blog_kw_filename = re.sub(r"[^a-z0-9-]", "", blog_data["focus_keyword"].lower().replace(" ", "-"))
-            blog_media_id, blog_img_url = upload_image_to_wp(
-                blog_img, f"{blog_kw_filename}-{today_str}.jpg",
-                alt=f"{blog_data['title']} | The Mobile Times",
-                img_title=blog_data["focus_keyword"],
-            )
-            # Body image for blog
-            _slot5_map = {
-                "industry-insights": "India business technology", "case-studies": "India business office",
-                "policy-updates": "India government parliament", "market-trends": "India market economy",
-                "how-to-guides": "technology guide setup",
-            }
-            blog_body_bytes = fetch_pexels_image(
-                _slot5_map.get(blog_subcat, "India telecom technology"), watermark=True
-            )
-            if blog_body_bytes:
-                _, blog_body_url = upload_image_to_wp(
-                    blog_body_bytes, f"{blog_kw_filename}-body-{today_str}.jpg",
-                    alt=f"{blog_data['focus_keyword']} | The Mobile Times",
-                    img_title=blog_data["focus_keyword"],
-                )
-                if blog_body_url:
-                    blog_data["content"] = inject_body_image_html(
-                        blog_data["content"], blog_body_url,
-                        f"{blog_data['focus_keyword']} | The Mobile Times"
-                    )
-            result = publish_post(blog_data, blog_media_id, sticky=False,
-                                  draft=test_mode, slot_idx=4)
-            if result:
-                post_url = result.get("url", result.get("link", ""))
-                log.info(f"  Slot 5 published: {post_url}")
-                ping_indexing(post_url)
-                seed_post_views(result.get("id"))
-                _increment_auto_count()
-                save_seen_urls(set())
-                try:
-                    from social_poster import post_to_all
-                    post_to_all(blog_data["title"], post_url, blog_data["tags"],
-                                category=blog_data["category_slug"])
-                except Exception as e:
-                    log.warning(f"Social posting failed: {e}")
-            else:
-                log.error("Slot 5 blog publish failed")
-            return
-
-        # Slots 1–4: news post
+        # All slots 1–5: news post
         log.info(f"Slot {slot} — fetching RSS stories...")
         stories = fetch_all_stories()
         if not stories:
@@ -2115,24 +2090,20 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
             "source":  "TMT Editorial",
         })
 
-    # Step 4: Select 4 stories with AI routing (one per slot)
+    # Step 4: Select 5 stories with AI routing (one per slot)
     log.info("Selecting and routing stories...")
     selected = select_stories(stories, trending)
     if not selected:
         log.error("Story selection failed — aborting")
         return
 
-    # Step 5: Blog topic for today
-    blog_topic, blog_subcat = WEEKLY_BLOG_TOPICS.get(today_idx, WEEKLY_BLOG_TOPICS[0])
-    log.info(f"Blog topic: {blog_topic}")
-
     published = []
     today_str = now_ist.strftime("%Y-%m-%d")
 
-    # Step 6: Generate and publish 4 news posts
+    # Step 5: Generate and publish 5 news posts
     for i, story in enumerate(selected):
         post_type = "exclusive" if story.get("type") == "exclusive" else "news"
-        log.info(f"Generating post {i+1}/4: {story['title'][:60]}...")
+        log.info(f"Generating post {i+1}/5: {story['title'][:60]}...")
 
         post_data = generate_news_post(story, date_str)
 
@@ -2191,67 +2162,6 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
 
         time.sleep(3)
 
-    # Step 7: Generate and publish blog post (Post 5 — Insights)
-    log.info(f"Generating blog post: {blog_topic[:60]}...")
-    blog_data = generate_blog_post(blog_topic, blog_subcat, date_str)
-
-    blog_img = (
-        fetch_fal_image(blog_topic) or
-        fetch_unsplash_image(blog_data["focus_keyword"]) or
-        fetch_pexels_image(blog_topic.split(":")[0]) or
-        make_fallback_image(blog_topic)
-    )
-    blog_kw_fn = re.sub(r"[^a-z0-9-]", "", blog_data["focus_keyword"].lower().replace(" ", "-"))
-    blog_filename = f"{blog_kw_fn}-{today_str}.jpg"
-    blog_alt  = f"{blog_data['title']} | The Mobile Times"
-    blog_media_id, blog_img_url = upload_image_to_wp(blog_img, blog_filename, blog_alt,
-                                                     img_title=blog_data["focus_keyword"])
-    # Body image for batch blog
-    blog_body_kw    = blog_data.get("category_slug", "industry-insights")
-    _blog_body_map  = {
-        "industry-insights": "India business technology", "case-studies": "India business office",
-        "policy-updates": "India government parliament", "market-trends": "India market economy",
-        "how-to-guides": "technology guide setup",
-    }
-    _blog_body_q    = _blog_body_map.get(blog_body_kw, "India telecom technology")
-    blog_body_bytes = (
-        fetch_unsplash_image(_blog_body_q, watermark=True) or
-        fetch_pexels_image(_blog_body_q, watermark=True)
-    )
-    if blog_body_bytes:
-        _, blog_body_url = upload_image_to_wp(
-            blog_body_bytes, f"{blog_kw_fn}-body-{today_str}.jpg",
-            alt=f"{blog_body_kw} | The Mobile Times", img_title=blog_body_kw,
-        )
-        if blog_body_url:
-            blog_data["content"] = inject_body_image_html(
-                blog_data["content"], blog_body_url,
-                f"{blog_body_kw} | The Mobile Times"
-            )
-
-    blog_result = publish_post(blog_data, blog_media_id, sticky=False, slot_idx=4)
-    if blog_result:
-        blog_url  = blog_result.get("url", "")
-        scheduled = blog_result.get("status") == "future"
-        log.info(f"  Blog {'scheduled' if scheduled else 'published'} [{POST_TIMES_IST[4]} IST]: {blog_url}")
-        ping_indexing(blog_url)
-        seed_post_views(blog_result.get("id"))
-        _increment_auto_count()
-        published.append({
-            "type":     "blog",
-            "title":    blog_data["title"],
-            "url":      blog_url,
-            "category": blog_subcat,
-            "tags":     blog_data["tags"],
-        })
-        try:
-            from social_poster import post_to_all
-            post_to_all(blog_data["title"], blog_url, blog_data["tags"], category=blog_data["category_slug"])
-        except Exception as e:
-            log.warning(f"Social posting failed for blog: {e}")
-    else:
-        log.error("Failed to publish blog post")
-
     # Save all processed story URLs to persistent dedup store
     new_story_urls = {s.get("url") for s in selected if s.get("url")} - {"", WP_URL}
     if new_story_urls:
@@ -2290,11 +2200,14 @@ def run_scheduler():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="The Mobile Times Automation Agent")
     parser.add_argument("--run-now",   action="store_true", help="Run all 5 slots at once immediately")
-    parser.add_argument("--slot",      type=int, choices=[1,2,3,4,5], help="Run a single slot (1–4 = news, 5 = blog)")
+    parser.add_argument("--slot",      type=int, choices=[1,2,3,4,5], help="Run a single news slot (1–5)")
     parser.add_argument("--schedule",  action="store_true", help="Run daily at 08:00 IST")
     parser.add_argument("--tip",       type=str, default="", help="Manual news tip — fed into the next slot's story selection")
     parser.add_argument("--single",    type=str, default="", help="Write and publish ONE article on a specific topic")
     parser.add_argument("--url",       type=str, default="", help="Rewrite and publish article from a source URL")
+    parser.add_argument("--blog",      type=str, metavar="SUBCATEGORY",
+                        choices=["industry-insights", "case-studies", "how-to-guides"],
+                        help="Generate and publish a weekly insights blog (industry-insights / case-studies / how-to-guides)")
     parser.add_argument("--test-post", action="store_true", help="Publish 1 draft post for testing")
     args = parser.parse_args()
 
@@ -2376,6 +2289,76 @@ if __name__ == "__main__":
                 log.warning(f"Social posting failed: {e}")
         else:
             log.error("  Publish failed")
+
+    elif args.blog:
+        subcategory = args.blog
+        log.info(f"Weekly blog mode — subcategory: {subcategory}")
+        date_str = datetime.now(IST).isoformat()
+        today_str = datetime.now(IST).strftime("%Y-%m-%d")
+
+        # Fetch current stories so the AI picks a timely, relevant topic
+        stories = fetch_all_stories()
+        if not stories:
+            log.error("No stories fetched — cannot pick blog topic")
+            sys.exit(1)
+
+        topic = pick_blog_topic(subcategory, stories)
+        log.info(f"  Topic: {topic[:70]}")
+
+        post_data = generate_blog_post(topic, subcategory, date_str)
+        log.info(f"  Generated title: {post_data['title']}")
+
+        img = (
+            fetch_fal_image(topic) or
+            fetch_unsplash_image(post_data["focus_keyword"]) or
+            fetch_pexels_image(post_data["focus_keyword"]) or
+            make_fallback_image(topic)
+        )
+        blog_kw_fn = re.sub(r"[^a-z0-9-]", "", post_data["focus_keyword"].lower().replace(" ", "-"))
+        media_id, _ = upload_image_to_wp(
+            img, f"{blog_kw_fn}-blog-{today_str}.jpg",
+            alt=f"{post_data['title']} | The Mobile Times",
+            img_title=post_data["focus_keyword"],
+        )
+
+        # Body image
+        _blog_body_map = {
+            "industry-insights": "India business technology",
+            "case-studies":      "India business office",
+            "how-to-guides":     "technology guide setup",
+        }
+        body_q     = _blog_body_map.get(subcategory, "India telecom technology")
+        body_bytes = (
+            fetch_unsplash_image(body_q, watermark=True) or
+            fetch_pexels_image(body_q, watermark=True)
+        )
+        if body_bytes:
+            _, body_url = upload_image_to_wp(
+                body_bytes, f"{blog_kw_fn}-body-{today_str}.jpg",
+                alt=f"{post_data['focus_keyword']} | The Mobile Times",
+                img_title=post_data["focus_keyword"],
+            )
+            if body_url:
+                post_data["content"] = inject_body_image_html(
+                    post_data["content"], body_url,
+                    f"{post_data['focus_keyword']} | The Mobile Times"
+                )
+
+        result = publish_post(post_data, media_id, sticky=False)
+        if result:
+            post_url = result.get("url", result.get("link", ""))
+            log.info(f"  Blog published: {post_url}")
+            ping_indexing(post_url)
+            seed_post_views(result.get("id"))
+            # Weekly blogs do NOT count toward the 5-post daily limit
+            try:
+                from social_poster import post_to_all
+                post_to_all(post_data["title"], post_url, post_data["tags"],
+                            category=post_data["category_slug"])
+            except Exception as e:
+                log.warning(f"Social posting failed: {e}")
+        else:
+            log.error("  Blog publish failed")
 
     elif args.test_post:
         log.info("Test mode — generating 1 full draft post (with category, tags, Rank Math meta)...")

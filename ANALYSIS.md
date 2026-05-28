@@ -147,7 +147,7 @@ All stored as `tmt_state_{name}` in `wp_options` (autoload=false):
 
 | # | Issue | Severity | Details |
 |---|-------|----------|---------|
-| W1 | **WP Super Cache instead of LiteSpeed Cache** | HIGH | Server is LiteSpeed. LiteSpeed Cache is 5–10× more efficient (server-side, no PHP overhead). WP Super Cache requires PHP execution for cache checks. |
+| W1 | ~~WP Super Cache instead of LiteSpeed Cache~~ | RESOLVED | Foxiz theme recommends WP Super Cache. Keep as-is. |
 | W2 | **Elementor loading on all pages** | MEDIUM | Elementor adds ~380KB JS/CSS. Only needed for static pages (About, Contact). Should be disabled on post/category pages if possible. |
 | W3 | **autoptimize + WP Super Cache** | LOW | Two overlapping optimization layers. LiteSpeed Cache would handle both. |
 | W4 | **No WebP image generation** | MEDIUM | All images saved as JPEG quality=90. WebP is 25–34% smaller. LiteSpeed Cache auto-converts; WP Super Cache does not. |
@@ -189,7 +189,7 @@ All stored as `tmt_state_{name}` in `wp_options` (autoload=false):
 
 | Priority | Action | Impact | Effort |
 |----------|--------|--------|--------|
-| 1 | **Install LiteSpeed Cache, disable WP Super Cache + autoptimize** | Core Web Vitals, server load, WebP auto-conversion | 30min |
+| 1 | **Deploy updated tmt-admin-api.php to live server** (security fix + views fix) | Eliminates hardcoded secret fallback, makes views errors visible | 5min upload |
 | 2 | **Fix WEEKLY_BLOG_TOPICS to use all 15 topics** (rotate by post count, not weekday) | Content diversity | 10min code |
 | 3 | **Block source OG image use as featured image** — use only Unsplash/Pexels/fal.ai | Legal risk elimination | 15min code |
 | 4 | **Set up GSC credentials** so monthly SEO optimizer activates | SEO improvements monthly | 30min setup |
