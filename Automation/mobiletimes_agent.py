@@ -291,63 +291,100 @@ Respond with ONLY the topic title. No quotes, no explanation. 55-75 characters."
         return fallback
 
 RSS_FEEDS = [
-    # ── India telecom & tech (primary) ───────────────────────────────────────
+    # ── SLOT 1: Telecom operators, networks, spectrum ─────────────────────────
     "https://economictimes.indiatimes.com/tech/telecom/rssfeeds/13357270.cms",
     "https://telecomtalk.info/feed/",
-    "https://www.medianama.com/feed/",
-    "https://entrackr.com/feed/",
-    "https://feeds.feedburner.com/gadgets360-latest",
-    "https://www.91mobiles.com/feed/",
-    "https://www.digit.in/rss.xml",
-    "https://www.androidauthority.com/feed/",
-    # ── India business & financial tech ──────────────────────────────────────
-    "https://www.livemint.com/rss/technology",
-    "https://www.business-standard.com/rss/technology-10602.rss",
-    "https://www.thehindu.com/sci-tech/technology/feeder/default.rss",
-    "https://inc42.com/feed/",
-    "https://yourstory.com/feed",
-    "https://www.financialexpress.com/industry/technology/feed/",
-    "https://www.ndtv.com/convergence/ndtv/feeds/tech_news.xml",
-    "https://timesofindia.indiatimes.com/rss.cms?msid=66949542",
-    # ── Global telecom ────────────────────────────────────────────────────────
     "https://www.lightreading.com/rss.xml",
     "https://www.fiercetelecom.com/rss.xml",
-    "https://www.telecompaper.com/rss/all-news.xml",
     "https://www.rcrwireless.com/feed",
-    "https://www.totaltele.com/rss",
+    "https://www.telecompaper.com/rss/news",
     "https://telecoms.com/feed/",
-    "https://www.mobileworldlive.com/feed/",
-    "https://www.capacitymedia.com/rss",
-    # ── Cybersecurity ─────────────────────────────────────────────────────────
+    "https://news.google.com/rss/search?q=jio+airtel+BSNL+telecom+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=5G+spectrum+india+network&hl=en-IN&gl=IN&ceid=IN:en",
+
+    # ── SLOT 2: Devices, gadgets, smartphones, consumer electronics ───────────
+    "https://feeds.feedburner.com/gadgets360-latest",
+    "https://www.91mobiles.com/hub/feed/",
+    "https://www.gsmarena.com/rss-news-articles.php3",
+    "https://www.androidauthority.com/feed/",
+    "https://www.digit.in/rss/news",
+    "https://www.notebookcheck.net/News.40.0.html?id=&txt=&mark=0&archive=0&type=0&typemax=255&or=0&perpage=50&rss=1",
+    "https://news.google.com/rss/search?q=smartphone+launch+india+price&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=samsung+apple+xiaomi+oneplus+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=laptop+tablet+wearable+india+2026&hl=en-IN&gl=IN&ceid=IN:en",
+
+    # ── SLOT 3: Cybersecurity, AI, policy, regulation ─────────────────────────
     "https://feeds.feedburner.com/TheHackersNews",
     "https://www.bleepingcomputer.com/feed/",
-    "https://www.darkreading.com/rss.xml",
-    # ── AI & global tech ──────────────────────────────────────────────────────
+    "https://krebsonsecurity.com/feed/",
     "https://venturebeat.com/category/ai/feed/",
+    "https://www.technologyreview.com/feed/",
+    "https://telecomregulatoryauthority.wordpress.com/feed/",
+    "https://policywatch.in/feed/",
+    "https://news.google.com/rss/search?q=cybersecurity+hack+india+data+breach&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=AI+artificial+intelligence+india+2026&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=TRAI+DOT+regulation+policy+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=data+privacy+DPDPA+india+2026&hl=en-IN&gl=IN&ceid=IN:en",
+
+    # ── SLOT 4: OTT, markets, IoT, EV, fintech, innovation ───────────────────
+    "https://www.afaqs.com/rss/news.xml",
+    "https://www.exchange4media.com/rss/technology-news.xml",
+    "https://inc42.com/feed/",
+    "https://entrackr.com/feed/",
+    "https://www.medianama.com/feed/",
+    "https://news.google.com/rss/search?q=OTT+streaming+netflix+jiocinema+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=EV+electric+vehicle+india+2026&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=IoT+smart+devices+india+market&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=fintech+india+startup+funding+2026&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=india+tech+market+revenue+growth&hl=en-IN&gl=IN&ceid=IN:en",
+
+    # ── General India tech (shared pool) ─────────────────────────────────────
+    "https://www.livemint.com/rss/technology",
+    "https://www.business-standard.com/rss/technology-10.rss",
+    "https://www.financialexpress.com/industry/technology/feed/",
     "https://techcrunch.com/feed/",
     "https://www.wired.com/feed/rss",
     "https://thenextweb.com/feed/",
-    "https://www.technologyreview.com/feed/",
-    # ── Policy & regulation ───────────────────────────────────────────────────
-    "https://telecomregulatoryauthority.wordpress.com/feed/",
-    "https://dot.gov.in/feeds/all/rss.xml",
-    # ── Devices & consumer ────────────────────────────────────────────────────
-    "https://www.gsmarena.com/rss-news-articles.php3",
-    "https://www.notebookcheck.net/News.40.0.html?id=&txt=&mark=0&archive=0&type=0&typemax=255&or=0&perpage=50&rss=1",
-    # ── Google News India (trending-sorted) ───────────────────────────────────
-    "https://news.google.com/rss/search?q=telecom+india&hl=en-IN&gl=IN&ceid=IN:en",
-    "https://news.google.com/rss/search?q=5G+smartphone+india&hl=en-IN&gl=IN&ceid=IN:en",
-    "https://news.google.com/rss/search?q=jio+airtel+technology&hl=en-IN&gl=IN&ceid=IN:en",
-    "https://news.google.com/rss/search?q=cybersecurity+ai+india&hl=en-IN&gl=IN&ceid=IN:en",
 ]
 
-# Queries for News API (newsapi.org) — India-telecom focused
+# ── Per-slot mandatory category buckets ───────────────────────────────────────
+# Each slot is assigned a content theme. Claude must pick from this theme.
+SLOT_THEMES = {
+    1: {
+        "name":    "Telecom Operators & Networks",
+        "desc":    "telecom operators (Jio, Airtel, BSNL, Vi), network rollout, 5G coverage, spectrum auctions, "
+                   "subscriber numbers, tariff plans, telecom revenue, tower infrastructure, satellite internet",
+        "avoid":   "Do NOT pick gadget launches, OTT content, or general business news for this slot.",
+    },
+    2: {
+        "name":    "Devices, Gadgets & Consumer Tech",
+        "desc":    "smartphone launches, mobile device specs, tablets, laptops, wearables, TWS earbuds, "
+                   "smart home gadgets, app launches, consumer electronics, India pricing and availability",
+        "avoid":   "Do NOT pick telecom operator news, policy/regulation, or enterprise tech for this slot.",
+    },
+    3: {
+        "name":    "Cybersecurity, AI, Policy & Regulation",
+        "desc":    "cybersecurity incidents, data breaches, ransomware, hacking, AI/ML developments, "
+                   "TRAI/DOT regulations, government policy, DPDPA data privacy, cloud computing, "
+                   "enterprise software, fintech regulation",
+        "avoid":   "Do NOT pick device launches or telecom operator tariff news for this slot.",
+    },
+    4: {
+        "name":    "Open — OTT, Markets, Innovation & Everything Else",
+        "desc":    "OTT/streaming platforms, market analysis, India tech startups, EV/smart grids, "
+                   "IoT deployments, satellite internet, semiconductor news, any strong story from a "
+                   "category NOT already covered in slots 1-3 today",
+        "avoid":   "Actively pick something DIFFERENT from slots 1-3. Avoid repeating themes.",
+    },
+}
+
+# Queries for News API (newsapi.org) — balanced across all categories
 NEWS_API_QUERIES = [
-    "5G India telecom",
-    "Jio Airtel BSNL India telecom",
-    "TRAI India regulation spectrum",
-    "smartphone launch India 2026",
-    "cybersecurity India tech",
+    "Jio Airtel BSNL India telecom 2026",
+    "smartphone launch India price specs",
+    "cybersecurity hack data breach India",
+    "AI artificial intelligence India startup",
+    "OTT streaming Netflix India 2026",
 ]
 
 INTERNAL_LINKS = {
@@ -1042,18 +1079,24 @@ ALL_NEWS_CATEGORIES = ", ".join(k for k in CATEGORY_IDS if k not in ("exclusive"
 INSIGHTS_SUBCATEGORIES = ["industry-insights", "how-to-guides", "case-studies", "press-releases"]
 
 def select_story_for_slot(stories: list[dict], slot: int, trending: list[str]) -> dict | None:
-    """Select the best story for a single slot — dynamic category, no fixed slot constraint."""
+    """Select the best story for a single slot using its mandatory content theme."""
+    theme = SLOT_THEMES.get(slot, SLOT_THEMES[4])
     stories_json = json.dumps(
         [{"i": i, "title": s["title"], "summary": s["summary"][:200],
           "cred": s.get("credibility", 50)}
          for i, s in enumerate(stories)],
         indent=2
     )
-    prompt = f"""You are the editor of The Mobile Times, India's leading telecom publication.
+    prompt = f"""You are the editor of The Mobile Times, India's leading telecom and tech publication.
 
 Today's trending keywords: {', '.join(trending)}
 
-Pick the single most newsworthy, India-relevant story from the list below.
+THIS IS SLOT {slot} — MANDATORY THEME: {theme['name']}
+This slot MUST cover: {theme['desc']}
+{theme['avoid']}
+
+Pick the single best story from the list below that fits this slot's theme.
+If no story fits perfectly, pick the closest match to the theme.
 
 RULES:
 - type: always "news"
@@ -1062,11 +1105,10 @@ RULES:
     "breaking-news" = urgent, just happened, major impact
     "new-launch"    = product/service/policy launch or major announcement
     "trending"      = default for anything else
-- is_breaking: true only if genuinely urgent (breaking outage, major regulatory action, etc.)
-- focus_keyword: 2-4 word SEO keyword derived from the story
-- Prioritise stories about India or Indian companies
-- "cred" is source credibility (0–100). Prefer higher-credibility sources when stories are otherwise equal in news value. Never sacrifice relevance for credibility.
-- AVOID stories that are only about Jio/Airtel tariff changes if there are more interesting stories available. Prefer device launches, cybersecurity, AI, OTT, and policy stories for variety.
+- is_breaking: true only if genuinely urgent
+- focus_keyword: 2-4 word SEO keyword from the story
+- Prioritise India-relevant stories
+- "cred" = source credibility 0–100. Prefer higher-credibility when otherwise equal.
 
 Stories:
 {stories_json}
@@ -1105,7 +1147,7 @@ Respond with JSON only — no extra text:
 
 
 def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
-    """Select 4 best stories with dynamic category assignment — one per daily slot."""
+    """Select 4 stories — one per slot, each with a mandatory content theme for category diversity."""
     if not stories:
         return []
 
@@ -1115,29 +1157,34 @@ def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
          for i, s in enumerate(stories)],
         indent=2
     )
-    prompt = f"""You are the editor of The Mobile Times, India's leading telecom news publication.
+
+    slot_instructions = "\n".join([
+        f"SLOT {slot} ({['','8am','12pm','4pm','8pm'][slot]} IST) — {t['name']}:\n"
+        f"  Pick 1 story about: {t['desc']}\n"
+        f"  {t['avoid']}"
+        for slot, t in SLOT_THEMES.items()
+    ])
+
+    prompt = f"""You are the editor of The Mobile Times, India's leading telecom and tech publication.
 
 Today's trending keywords: {', '.join(trending)}
 
-Pick the 4 BEST, most newsworthy stories. Rules:
+Select exactly ONE story for each of the 4 daily slots. Each slot has a MANDATORY content theme.
+Each story must be UNIQUE — no index used twice.
 
-- type: always "news" for all 4
-- category: assign each story to its BEST fitting category from this full list:
-  {ALL_NEWS_CATEGORIES}
-- Each story used exactly once (no duplicates across the 4 slots)
+{slot_instructions}
+
+RULES FOR ALL SLOTS:
+- type: always "news"
+- category: assign to the best fitting category from: {ALL_NEWS_CATEGORIES}
 - tags: exactly ONE per story from: trending, breaking-news, new-launch
     "breaking-news" = urgent, just happened, major immediate impact
     "new-launch"    = product/service/policy launch or major announcement
     "trending"      = default for anything else notable
-- is_breaking: true only if genuinely urgent breaking news (max 1 across all 4)
+- is_breaking: true only if genuinely urgent (max 1 across all 4)
 - focus_keyword: 2-4 word SEO keyword from the story
-- "cred" is source credibility (0–100). Prefer higher-credibility sources when equal. Never sacrifice relevance for credibility.
-
-DIVERSITY RULES (strictly enforced — violations hurt the site):
-1. OPERATOR CAP: Maximum 1 story per telecom operator. If you pick a Jio story, do NOT pick another Jio or Reliance story. Same rule for Airtel/Bharti and for BSNL/Vodafone/Vi.
-2. CATEGORY SPREAD: The 4 stories must span at least 3 DIFFERENT categories. Do not pick 3 telecom-operator stories.
-3. DEVICE/GADGET REQUIREMENT: At least 1 of the 4 stories must be about smartphones, devices, gadgets, apps, cybersecurity, AI, or OTT — something outside pure telecom operator news.
-4. Prioritise India-relevant stories, but include 1 global tech story if India news is thin.
+- Prioritise India-relevant stories within each theme
+- "cred" = source credibility 0–100. Prefer higher cred when themes are otherwise equal.
 
 Stories:
 {stories_json}
