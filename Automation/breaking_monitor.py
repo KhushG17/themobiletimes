@@ -60,10 +60,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("tmt.breaking")
 
-MAX_BREAKING_PER_DAY = 3   # hard cap on breaking-only posts regardless of daily total
+MAX_BREAKING_PER_DAY = 1   # max breaking posts per day (daily already does 4 → combined stays ≤ 5)
 DAILY_POST_LIMIT     = 5   # combined automated posts per day (daily + breaking)
 POLL_INTERVAL_MIN    = 17          # minutes between polls
-SCORE_THRESHOLD      = 45          # 0-100; only publish if story scores above this
+SCORE_THRESHOLD      = 65          # 0-100; only publish if story scores above this (raised from 45)
 
 BREAKING_CATEGORY_IDS = {
     "5g-networks":     160,
@@ -145,31 +145,43 @@ AUTHORITY_LINKS = [
 # ─── Seen-story deduplication ─────────────────────────────────────────────────
 
 def _load_seen() -> dict:
-    """Load breaking news seen state from WordPress (persists across ephemeral runners)."""
-    try:
-        r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/state/get",
-            json={"secret": TMT_SECRET, "name": "breaking_seen"},
-            timeout=10,
-        )
-        if r.ok:
-            data = r.json().get("value")
-            if data:
-                return data
-    except Exception:
-        pass
-    return {"published": [], "daily": {}}
+    """Load breaking news seen state from WordPress. Retries 3× before fail-safe."""
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/state/get",
+                json={"secret": TMT_SECRET, "name": "breaking_seen"},
+                timeout=8,
+            )
+            if r.ok:
+                data = r.json().get("value")
+                if data:
+                    return data
+                return {"published": [], "daily": {}}
+        except Exception:
+            if attempt < 2:
+                time.sleep(2)
+    # All retries failed — return fail-safe: assume we're already at cap today
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+    log.warning("breaking_seen read failed 3× — assuming at daily cap to prevent runaway publishing")
+    return {"published": [], "daily": {today: MAX_BREAKING_PER_DAY}}
 
 def _save_seen(data: dict):
-    """Persist breaking news seen state to WordPress."""
-    try:
-        requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/state/set",
-            json={"secret": TMT_SECRET, "name": "breaking_seen", "value": data},
-            timeout=10,
-        )
-    except Exception:
-        pass
+    """Persist breaking news seen state to WordPress. Retries 3×."""
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/state/set",
+                json={"secret": TMT_SECRET, "name": "breaking_seen", "value": data},
+                timeout=8,
+            )
+            if r.ok:
+                return
+        except Exception:
+            pass
+        if attempt < 2:
+            time.sleep(2)
+    log.warning("breaking_seen save failed after 3 attempts")
 
 def _story_hash(title: str) -> str:
     return hashlib.md5(title.encode()).hexdigest()
@@ -773,50 +785,107 @@ def publish_breaking_post(post_data: dict, media_id: int | None) -> dict | None:
     return None
 
 def seed_post_views(post_id: int):
-    """Seed a random view count (300–2000) on a newly published post via tmt-admin-api."""
+    """Seed a random view count (300–2000) on a newly published post. Retries 3×."""
     if not post_id:
         return
-    try:
-        r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/views/seed",
-            json={"secret": TMT_SECRET, "post_id": post_id},
-            timeout=10,
-        )
-        if r.ok:
-            data = r.json()
-            log.info(f"  Views seeded: {data.get('count')} (meta: {data.get('meta_key')})")
-        else:
-            log.warning(f"  Views seed responded {r.status_code}")
-    except Exception as e:
-        log.warning(f"Views seed failed: {e}")
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/views/seed",
+                json={"secret": TMT_SECRET, "post_id": post_id},
+                timeout=15,
+            )
+            if r.ok:
+                data = r.json()
+                log.info(f"  Views seeded: {data.get('count')} (meta: {data.get('meta_key')})")
+                return
+            log.warning(f"  Views seed {r.status_code} (attempt {attempt+1}/3)")
+        except Exception as e:
+            log.warning(f"  Views seed attempt {attempt+1}/3 failed: {e}")
+        if attempt < 2:
+            time.sleep(3)
+    log.error(f"  Views seed gave up after 3 attempts for post {post_id}")
 
 
 def _get_auto_posts_today() -> int:
-    """Automated posts (daily + breaking) published today, from shared WP state counter."""
+    """Automated posts today from shared WP state counter. Fail-safe: assume at limit on error."""
     today = datetime.now(IST).strftime("%Y-%m-%d")
-    try:
-        r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
-                         json={"secret": TMT_SECRET, "name": f"auto_posts_{today}"}, timeout=10)
-        if r.ok:
-            return int(r.json().get("value") or 0)
-    except Exception:
-        pass
-    return 0
+    for attempt in range(3):
+        try:
+            r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
+                             json={"secret": TMT_SECRET, "name": f"auto_posts_{today}"}, timeout=8)
+            if r.ok:
+                return int(r.json().get("value") or 0)
+        except Exception:
+            if attempt < 2:
+                time.sleep(2)
+    log.warning("auto_posts read failed 3× — assuming at daily limit to prevent runaway publishing")
+    return DAILY_POST_LIMIT
 
 
 def _increment_auto_count():
-    """Increment the shared daily automated post counter in WP state."""
+    """Increment the shared daily automated post counter in WP state. Retries 3×."""
     today = datetime.now(IST).strftime("%Y-%m-%d")
     key   = f"auto_posts_{today}"
+    for attempt in range(3):
+        try:
+            r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
+                             json={"secret": TMT_SECRET, "name": key}, timeout=8)
+            n = int(r.json().get("value") or 0) if r.ok else 0
+            resp = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/set",
+                         json={"secret": TMT_SECRET, "name": key, "value": n + 1}, timeout=8)
+            if resp.ok:
+                log.info(f"  Daily auto count: {n + 1}/{DAILY_POST_LIMIT}")
+                return
+        except Exception:
+            pass
+        if attempt < 2:
+            time.sleep(2)
+    log.warning("Daily counter increment failed after 3 attempts")
+
+
+_DEDUP_STOPWORDS = {"the", "and", "for", "with", "from", "that", "this", "are",
+                    "was", "has", "its", "have", "will", "india", "2026", "2025",
+                    "new", "how", "why", "who", "what", "now", "first", "last",
+                    "says", "said", "gets", "set", "after", "over", "also"}
+
+def get_published_titles(limit: int = 100) -> set:
+    """Fetch recent published post titles from WP for cross-script dedup."""
     try:
-        r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
-                         json={"secret": TMT_SECRET, "name": key}, timeout=10)
-        n = int(r.json().get("value") or 0) if r.ok else 0
-        requests.post(f"{WP_URL}/wp-json/tmt/v1/state/set",
-                     json={"secret": TMT_SECRET, "name": key, "value": n + 1}, timeout=10)
-        log.info(f"  Daily auto count: {n + 1}/{DAILY_POST_LIMIT}")
+        r = requests.get(
+            f"{WP_URL}/wp-json/wp/v2/posts",
+            headers=WP_HDR,
+            params={"per_page": min(limit, 100), "status": "publish",
+                    "_fields": "title,slug"},
+            timeout=12,
+        )
+        if not r.ok:
+            return set()
+        titles = set()
+        for p in r.json():
+            t = re.sub(r"<[^>]+>", "", p["title"]["rendered"]).lower().strip()
+            titles.add(t)
+            titles.add(p["slug"].replace("-", " "))
+        return titles
     except Exception:
-        pass
+        return set()
+
+def is_duplicate(story_title: str, published: set, threshold: float = 0.45) -> bool:
+    """Return True if story overlaps too much with a recently published post title.
+    Threshold 0.45 (lower than daily posts) because breaking titles are shorter and similar."""
+    title = story_title.lower().strip()
+    words = set(re.findall(r"\b\w{3,}\b", title)) - _DEDUP_STOPWORDS
+    if not words:
+        return False
+    for pub in published:
+        pub_words = set(re.findall(r"\b\w{3,}\b", pub)) - _DEDUP_STOPWORDS
+        if not pub_words:
+            continue
+        overlap = len(words & pub_words) / max(len(words), 1)
+        if overlap >= threshold:
+            log.info(f"  Dedup skip: '{story_title[:55]}' ({overlap:.0%} overlap)")
+            return True
+    return False
 
 
 def ping_indexing(post_url: str):
@@ -861,6 +930,18 @@ def run_scan():
     stories = fetch_all_breaking_stories()
     if not stories:
         log.info("No new stories found")
+        return
+
+    # Full dedup: check against ALL recently published posts (daily + breaking)
+    published_titles = get_published_titles()
+    if published_titles:
+        before = len(stories)
+        stories = [s for s in stories if not is_duplicate(s["title"], published_titles)]
+        removed = before - len(stories)
+        if removed:
+            log.info(f"  Dedup removed {removed} stories already covered on the site")
+    if not stories:
+        log.info("All fetched stories already covered — nothing new to publish")
         return
 
     # Score all stories and pick the best candidate

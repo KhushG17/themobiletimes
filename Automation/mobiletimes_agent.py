@@ -999,6 +999,7 @@ RULES:
 - focus_keyword: 2-4 word SEO keyword derived from the story
 - Prioritise stories about India or Indian companies
 - "cred" is source credibility (0–100). Prefer higher-credibility sources when stories are otherwise equal in news value. Never sacrifice relevance for credibility.
+- AVOID stories that are only about Jio/Airtel tariff changes if there are more interesting stories available. Prefer device launches, cybersecurity, AI, OTT, and policy stories for variety.
 
 Stories:
 {stories_json}
@@ -1056,8 +1057,6 @@ Pick the 4 BEST, most newsworthy stories. Rules:
 - type: always "news" for all 4
 - category: assign each story to its BEST fitting category from this full list:
   {ALL_NEWS_CATEGORIES}
-- Try to pick stories from DIFFERENT categories (diversity — don't pick 4 5G stories)
-- Prioritise India-relevant stories
 - Each story used exactly once (no duplicates across the 4 slots)
 - tags: exactly ONE per story from: trending, breaking-news, new-launch
     "breaking-news" = urgent, just happened, major immediate impact
@@ -1065,7 +1064,13 @@ Pick the 4 BEST, most newsworthy stories. Rules:
     "trending"      = default for anything else notable
 - is_breaking: true only if genuinely urgent breaking news (max 1 across all 4)
 - focus_keyword: 2-4 word SEO keyword from the story
-- "cred" is source credibility (0–100). Prefer higher-credibility sources when stories are otherwise equal. Never sacrifice relevance or diversity for credibility.
+- "cred" is source credibility (0–100). Prefer higher-credibility sources when equal. Never sacrifice relevance for credibility.
+
+DIVERSITY RULES (strictly enforced — violations hurt the site):
+1. OPERATOR CAP: Maximum 1 story per telecom operator. If you pick a Jio story, do NOT pick another Jio or Reliance story. Same rule for Airtel/Bharti and for BSNL/Vodafone/Vi.
+2. CATEGORY SPREAD: The 4 stories must span at least 3 DIFFERENT categories. Do not pick 3 telecom-operator stories.
+3. DEVICE/GADGET REQUIREMENT: At least 1 of the 4 stories must be about smartphones, devices, gadgets, apps, cybersecurity, AI, or OTT — something outside pure telecom operator news.
+4. Prioritise India-relevant stories, but include 1 global tech story if India news is thin.
 
 Stories:
 {stories_json}
@@ -1388,22 +1393,157 @@ NEWS_STRUCTURES = [
 
 <p class="tmt-sources"><strong>Sources:</strong></p>"""
     },
+
+    # ── Template G: Explainer (What is X and why it matters) ──
+    {
+        "style": "educational explainer — break down a complex telecom concept, technology, or policy in plain English for smart non-experts. Answer: what is it, how it works, and why it matters for India right now. Use one analogy per concept.",
+        "structure": """<p class="tmt-intro"><strong>[What is "{kw}" in one clear sentence with zero jargon.]</strong> [2 sentences: why "{kw}" matters right now for India's telecom and digital economy.]</p>
+
+<div class="tmt-toc">
+<h3>In This Explainer</h3>
+<ol>
+<li><a href="#s1">What Is {kw}?</a></li>
+<li><a href="#s2">How {kw} Works in Practice</a></li>
+<li><a href="#s3">Why {kw} Matters for India</a></li>
+</ol>
+</div>
+
+<h2 id="s1">What Is {kw}? The Plain English Version</h2>
+<p>[80–100 words. Define "{kw}" from scratch. Use one analogy. No acronym left unexplained. Use "{kw}" here.]</p>
+<p>[80–100 words. How "{kw}" works one level deeper. A real example from Indian telecom — named operator, real data.]</p>
+
+<div class="tmt-highlights">
+<h3>Key Facts About {kw}</h3>
+<ul>
+<li>[Fact 1 — surprising or counterintuitive, with a number]</li>
+<li>[Fact 2 — India-specific adoption or usage stat]</li>
+<li>[Fact 3 — global comparison]</li>
+<li>[Fact 4 — what changes with "{kw}" in 2026]</li>
+</ul>
+</div>
+
+<h2 id="s2">How {kw} Works: A Real India Example</h2>
+<p>[80–100 words. Step-by-step how "{kw}" operates in practice. Named operator or company. Real data point. Use "{kw}" here.]</p>
+
+<blockquote class="tmt-quote">"[Expert explaining "{kw}" in one memorable, accessible sentence — no jargon]" — Telecom Technology Analyst</blockquote>
+
+<h2 id="s3">Why {kw} Matters for India Right Now</h2>
+<p>[80–100 words. India-specific stakes. Policy, infrastructure, cost to consumers, what changes for users. Use "{kw}" here.]</p>
+<p>[80–100 words. What happens if India gets this right — or wrong. Specific milestone or deadline to watch in 2026.]</p>
+
+<p class="tmt-sources"><strong>Sources:</strong></p>"""
+    },
+
+    # ── Template H: Policy Brief (TRAI/DOT/Regulatory) ──
+    {
+        "style": "regulatory policy brief — precise, factual, written for telecom professionals who need to understand what a ruling means, who it affects, and what happens next. No fluff. Lead with the mandate, end with compliance implications.",
+        "structure": """<p class="tmt-intro"><strong>[State the policy or regulatory action on "{kw}" — who issued it and exactly what it mandates.]</strong> [2 sentences: enforcement date and which operators or consumers are directly affected.]</p>
+
+<div class="tmt-highlights">
+<h3>Policy Summary: {kw}</h3>
+<ul>
+<li><strong>Issued by:</strong> [Regulator — TRAI / DOT / Ministry / Court]</li>
+<li><strong>Effective:</strong> [Date or timeline]</li>
+<li><strong>Affects:</strong> [Specific operators, consumers, or sectors]</li>
+<li><strong>Core mandate:</strong> [One-line summary of what must change]</li>
+</ul>
+</div>
+
+<h2 id="s1">What the {kw} Directive Actually Requires</h2>
+<p>[80–100 words. The specific rule — what is now permitted, prohibited, or mandated. Named operators. Use "{kw}" here.]</p>
+<p>[80–100 words. Exceptions, grace periods, phased implementation. Any ambiguities in the regulation text.]</p>
+
+<h2 id="s2">Industry Impact: Winners and Losers Under {kw}</h2>
+<p>[80–100 words. Which operators benefit or are burdened — Jio, Airtel, BSNL, Vi. Specific business implications. Use "{kw}" here.]</p>
+
+<blockquote class="tmt-quote">"[Industry reaction quote — telecom executive or analyst on whether this policy is fair or problematic]" — Telecom Industry Analyst</blockquote>
+
+<h2 id="s3">Compliance Timeline and What Happens Next With {kw}</h2>
+<p>[80–100 words. Deadlines, likely legal challenges, next TRAI or DOT moves to watch. Use "{kw}" once.]</p>
+
+<p class="tmt-sources"><strong>Sources:</strong></p>"""
+    },
+
+    # ── Template I: Market Numbers (data-heavy, India market report) ──
+    {
+        "style": "data-driven India market report — lead with the most significant number, then unpack what the data means for operators, investors, and consumers. Every paragraph must contain at least one specific metric with a source.",
+        "structure": """<p class="tmt-intro"><strong>[Lead with the single most significant market number about "{kw}".]</strong> [2 sentences: what this figure reveals about India's market trajectory and why it matters in 2026.]</p>
+
+<div class="tmt-data-box">
+<h3>{kw}: India Market Snapshot 2026</h3>
+<ul>
+<li><strong>[Market size / revenue]:</strong> [₹X crore or $X billion with year]</li>
+<li><strong>[Growth rate]:</strong> [X% YoY or QoQ — source]</li>
+<li><strong>[Market leader]:</strong> [Company with X% share]</li>
+<li><strong>[2026 forecast]:</strong> [Projected figure — analyst or report]</li>
+</ul>
+</div>
+
+<h2 id="s1">What the {kw} Numbers Actually Mean</h2>
+<p>[80–100 words. Interpret the data — not just what happened but why the numbers moved. Use "{kw}" here.]</p>
+<p>[80–100 words. Competitive dynamics — how Jio, Airtel, BSNL, Vi compare on this metric. Named figures.]</p>
+
+<h2 id="s2">India vs Global: Where {kw} Stands</h2>
+<p>[80–100 words. Benchmark India's position globally. 2–3 country comparisons with real data points. Use "{kw}" here.]</p>
+
+<blockquote class="tmt-quote">"[Analyst interpreting what the {kw} data means for investment or operator strategy in India]" — Senior Market Analyst</blockquote>
+
+<h2 id="s3">What the {kw} Data Signals for the Rest of 2026</h2>
+<p>[80–100 words. Forward-looking: what current numbers predict. Specific milestones to watch. Use "{kw}" once.]</p>
+
+<p class="tmt-sources"><strong>Sources:</strong></p>"""
+    },
+
+    # ── Template J: Industry Reaction (multiple voices, analysis) ──
+    {
+        "style": "news analysis with industry reaction — a major development happened, now synthesise how operators, analysts, and consumers are responding. Multiple named perspectives. Clear TMT verdict at the end.",
+        "structure": """<p class="tmt-intro"><strong>[State the development around "{kw}" that is driving industry reaction.]</strong> [2 sentences: the scale of the response and why this development is significant for Indian telecom.]</p>
+
+<div class="tmt-highlights">
+<h3>How the Industry Is Reacting to {kw}</h3>
+<ul>
+<li>[Jio / Airtel / BSNL response — what the operator said or did]</li>
+<li>[Regulator or government angle — TRAI / DOT position]</li>
+<li>[Consumer impact — what subscribers are reporting or deciding]</li>
+<li>[Analyst read — what market watchers are predicting]</li>
+</ul>
+</div>
+
+<h2 id="s1">Why {kw} Is Generating Such Strong Reactions</h2>
+<p>[80–100 words. The core disagreement or debate around "{kw}". Who supports it, who opposes it, why. Use "{kw}" here.]</p>
+<p>[80–100 words. Historical context — has India faced a similar situation before? What happened then? Real data.]</p>
+
+<h2 id="s2">What Each Player Stands to Gain or Lose From {kw}</h2>
+<p>[80–100 words. Operator-by-operator breakdown — Jio, Airtel, smaller players. Named, specific. Use "{kw}" here.]</p>
+
+<blockquote class="tmt-quote">"[Strong quote from an industry voice representing the dominant view on "{kw}" — named person or organisation]" — Senior Telecom Executive</blockquote>
+
+<h2 id="s3">TMT Read: What {kw} Means Going Forward</h2>
+<p>[80–100 words. TMT's own analysis — who is right, what the likely outcome is, what to watch for in 2026. Use "{kw}" once.]</p>
+
+<p class="tmt-sources"><strong>Sources:</strong></p>"""
+    },
 ]
 
 def generate_news_post(story: dict, date_str: str) -> dict:
     kw = story["focus_keyword"]
     is_exclusive = story["type"] == "exclusive"
 
-    # Pick structure — product stories prefer Template E, breaking prefers A
+    # Pick structure — steer certain story types to the most fitting template
     tags = story.get("tags", [])
     cat  = story.get("category", "")
     if cat in ("smartphones-tablets", "accessories-wearables", "network-smart-devices") or "new-launch" in tags:
-        template = NEWS_STRUCTURES[4]  # Product/Launch
+        template = NEWS_STRUCTURES[4]   # E: Product/Launch
     elif "breaking-news" in tags:
-        template = NEWS_STRUCTURES[0]  # Breaking News
+        template = NEWS_STRUCTURES[0]   # A: Breaking News
+    elif cat == "policy-updates":
+        template = NEWS_STRUCTURES[7]   # H: Policy Brief
+    elif cat in ("market-trends", "data-analytics"):
+        template = NEWS_STRUCTURES[8]   # I: Market Numbers
     elif is_exclusive:
-        template = NEWS_STRUCTURES[3]  # Deep Dive for exclusives
+        template = NEWS_STRUCTURES[3]   # D: Deep Dive for exclusives
     else:
+        # Rotate across all 10 templates with equal weight
         template = random.choice(NEWS_STRUCTURES)
 
     style     = template["style"]
@@ -1910,37 +2050,47 @@ def publish_post(post_data: dict, featured_media_id: int | None,
     return None
 
 def seed_post_views(post_id: int):
-    """Seed a random view count (300–2000) on a newly published post via tmt-admin-api."""
+    """Seed a random view count (300–2000) on a newly published post. Retries 3×."""
     if not post_id:
         return
-    try:
-        r = requests.post(
-            f"{WP_URL}/wp-json/tmt/v1/views/seed",
-            json={"secret": TMT_SECRET, "post_id": post_id},
-            timeout=10,
-        )
-        if r.ok:
-            data = r.json()
-            log.info(f"  Views seeded: {data.get('count')} (meta: {data.get('meta_key')})")
-        else:
-            log.warning(f"  Views seed responded {r.status_code}")
-    except Exception as e:
-        log.warning(f"Views seed failed: {e}")
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{WP_URL}/wp-json/tmt/v1/views/seed",
+                json={"secret": TMT_SECRET, "post_id": post_id},
+                timeout=15,
+            )
+            if r.ok:
+                data = r.json()
+                log.info(f"  Views seeded: {data.get('count')} (meta: {data.get('meta_key')})")
+                return
+            log.warning(f"  Views seed {r.status_code} (attempt {attempt+1}/3)")
+        except Exception as e:
+            log.warning(f"  Views seed attempt {attempt+1}/3 failed: {e}")
+        if attempt < 2:
+            time.sleep(3)
+    log.error(f"  Views seed gave up after 3 attempts for post {post_id}")
 
 
 def _increment_auto_count():
-    """Increment the shared daily automated post counter in WP state."""
+    """Increment the shared daily automated post counter in WP state. Retries 3×."""
     today = datetime.now(IST).strftime("%Y-%m-%d")
     key   = f"auto_posts_{today}"
-    try:
-        r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
-                         json={"secret": TMT_SECRET, "name": key}, timeout=10)
-        n = int(r.json().get("value") or 0) if r.ok else 0
-        requests.post(f"{WP_URL}/wp-json/tmt/v1/state/set",
-                     json={"secret": TMT_SECRET, "name": key, "value": n + 1}, timeout=10)
-        log.info(f"  Daily auto count: {n + 1}/5")
-    except Exception:
-        pass
+    for attempt in range(3):
+        try:
+            r = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/get",
+                             json={"secret": TMT_SECRET, "name": key}, timeout=8)
+            n = int(r.json().get("value") or 0) if r.ok else 0
+            resp = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/set",
+                         json={"secret": TMT_SECRET, "name": key, "value": n + 1}, timeout=8)
+            if resp.ok:
+                log.info(f"  Daily auto count: {n + 1}/5")
+                return
+        except Exception:
+            pass
+        if attempt < 2:
+            time.sleep(2)
+    log.warning("Daily counter increment failed after 3 attempts")
 
 
 def ping_indexing(post_url: str):
