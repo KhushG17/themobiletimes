@@ -64,20 +64,30 @@ logging.basicConfig(
 )
 log = logging.getLogger("tmt.breaking")
 
-MAX_BREAKING_PER_DAY = 1   # max breaking posts per day (daily already does 4 → combined stays ≤ 5)
-DAILY_POST_LIMIT     = 5   # combined automated posts per day (daily + breaking)
+MAX_BREAKING_PER_DAY = 3   # max breaking posts per day (quality gate is SCORE_THRESHOLD=65)
+DAILY_POST_LIMIT     = 7   # combined cap: 4 daily + up to 3 breaking on a big news day
 POLL_INTERVAL_MIN    = 17          # minutes between polls
-SCORE_THRESHOLD      = 65          # 0-100; only publish if story scores above this (raised from 45)
+SCORE_THRESHOLD      = 65          # 0-100; only publish if story scores above this
 
+# All publishable categories — breaking news can land in any of these
 BREAKING_CATEGORY_IDS = {
-    "5g-networks":     160,
-    "industry-trends": 159,
-    "ott-streaming":   162,
-    "ev-smart-grids":  164,
-    "internet-of-things": 165,
-    "tech-innovation": 161,
-    "policy-updates":  122,
-    "market-trends":   123,
+    "5g-networks":           160,
+    "accessories-wearables": 151,
+    "ai-machine-learning":   156,
+    "cybersecurity":         155,
+    "data-analytics":        157,
+    "devices-hardware":      129,
+    "ev-smart-grids":        164,
+    "how-to-guides":         142,
+    "industry-insights":     141,
+    "industry-trends":       159,
+    "internet-of-things":    165,
+    "market-trends":         123,
+    "ott-streaming":         162,
+    "policy-updates":        122,
+    "smartphones-tablets":   150,
+    "software":              154,
+    "tech-innovation":       161,
 }
 
 TAG_IDS = {
@@ -712,7 +722,7 @@ meta_description MUST contain the exact focus keyword verbatim. 120–155 charac
 </div>
 
 ━━ NEW LINE AFTER HTML ━━
-META_JSON:{{"article_title":"[title]","slug":"[slug]-2026","focus_keyword":"[2-4 words]","meta_title":"[50-60 chars | The Mobile Times]","meta_description":"[120-155 chars MUST contain focus keyword — NO em dashes]","og_title":"[60-70 chars]","og_description":"[180-200 chars]","category":"[one of: 5g-networks, industry-trends, ott-streaming, ev-smart-grids, internet-of-things, tech-innovation, policy-updates, market-trends]","faq":[{{"q":"[Q1]","a":"[A1]"}},{{"q":"[Q2]","a":"[A2]"}},{{"q":"[Q3]","a":"[A3]"}}]}}"""
+META_JSON:{{"article_title":"[title]","slug":"[slug]-2026","focus_keyword":"[2-4 words]","meta_title":"[50-60 chars | The Mobile Times]","meta_description":"[120-155 chars MUST contain focus keyword — NO em dashes]","og_title":"[60-70 chars]","og_description":"[180-200 chars]","category":"[one of: 5g-networks, accessories-wearables, ai-machine-learning, cybersecurity, data-analytics, devices-hardware, ev-smart-grids, industry-insights, industry-trends, internet-of-things, market-trends, ott-streaming, policy-updates, smartphones-tablets, software, tech-innovation]","faq":[{{"q":"[Q1]","a":"[A1]"}},{{"q":"[Q2]","a":"[A2]"}},{{"q":"[Q3]","a":"[A3]"}}]}}"""
 
     r = anthropic_client.messages.create(
         model="claude-sonnet-4-6",

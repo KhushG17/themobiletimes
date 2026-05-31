@@ -2404,7 +2404,7 @@ def _increment_auto_count():
             resp = requests.post(f"{WP_URL}/wp-json/tmt/v1/state/set",
                          json={"secret": TMT_SECRET, "name": key, "value": n + 1}, timeout=8)
             if resp.ok:
-                log.info(f"  Daily auto count: {n + 1}/5")
+                log.info(f"  Daily auto count: {n + 1}/7")
                 return
         except Exception:
             pass
