@@ -1090,9 +1090,14 @@ def fetch_all_stories() -> list[dict]:
             stories.append(s)
 
     # Supplement / fallback: RSS feeds
+    _rss_headers = {"User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0; +https://themobiletimes.com)"}
     for url in RSS_FEEDS:
         try:
-            feed = feedparser.parse(url)
+            # Use requests with timeout — feedparser.parse(url) has no timeout
+            # and hangs indefinitely on unresponsive feeds
+            _r = requests.get(url, headers=_rss_headers, timeout=12, allow_redirects=True)
+            _r.raise_for_status()
+            feed = feedparser.parse(_r.content)
             for entry in feed.entries[:8]:
                 title   = entry.get("title", "").strip()
                 summary = entry.get("summary", entry.get("description", "")).strip()

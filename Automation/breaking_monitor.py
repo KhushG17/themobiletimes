@@ -478,9 +478,14 @@ def poll_rss() -> list[dict]:
     seen_published = set(seen_data.get("published", []))
     recent_wp_titles = _fetch_recent_wp_titles()
     stale_count = 0
+    rss_headers = {"User-Agent": "Mozilla/5.0 (compatible; TMTBot/1.0; +https://themobiletimes.com)"}
     for url in RSS_FEEDS:
         try:
-            feed = feedparser.parse(url)
+            # Fetch with explicit timeout — feedparser.parse(url) has no timeout
+            # and will hang indefinitely on unresponsive feeds, causing 6h GHA timeouts
+            r = requests.get(url, headers=rss_headers, timeout=12, allow_redirects=True)
+            r.raise_for_status()
+            feed = feedparser.parse(r.content)
             for entry in feed.entries[:15]:
                 title   = entry.get("title", "").strip()
                 summary = entry.get("summary", entry.get("description", "")).strip()
