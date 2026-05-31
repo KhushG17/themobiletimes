@@ -355,30 +355,72 @@ RSS_FEEDS = [
     "https://techcrunch.com/feed/",
     "https://www.wired.com/feed/rss",
     "https://thenextweb.com/feed/",
+
+    # ── Indian accessory & gadget brands — product launches ───────────────────
+    "https://news.google.com/rss/search?q=Portronics+launch+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=Zebronics+new+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=Ambrane+india+launch&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=Noise+GoNoise+smartwatch+earbuds+india&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=Mivi+india+launch+earphones&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=pTron+boAt+Ubon+india+launch&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=india+mobile+accessories+gadget+launch+2026&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=budget+5G+phone+india+launch+price&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=india+smartwatch+earbuds+TWS+launch&hl=en-IN&gl=IN&ceid=IN:en",
 ]
 
-# ── Site coverage map — used to guide diversity in story selection ─────────────
-# Not slot assignments. Claude uses this to understand what areas the site covers
-# and to ensure the day's posts span as many different areas as possible.
+# ── Site coverage map — traffic-weighted, used to guide story selection ────────
+# Ordered by traffic potential. Claude uses this to prioritise genuinely impactful
+# stories and avoid covering the same category twice in one day.
 COVERAGE_AREAS = [
-    "Telecom operators, carrier strategies, network rollout, 5G, spectrum, subscribers, plans (Jio/Airtel/BSNL/Vi)",
-    "Smartphones, devices, gadgets, consumer electronics, launches, specs, India pricing",
-    "Cybersecurity, data breaches, hacking, ransomware, digital fraud, CERT-In alerts",
-    "AI, machine learning, cloud computing, enterprise software, automation in India",
-    "TRAI, DOT, government policy, telecom regulation, spectrum auctions, DPDPA privacy law",
-    "OTT, streaming platforms, digital media, JioCinema, Netflix India, content deals",
-    "India tech startups, funding rounds, M&A, market analysis, business strategy",
-    "IoT, smart devices, EV, electric vehicles, smart grids, emerging technology",
-    "Semiconductor, chips, hardware, manufacturing, global supply chain impact on India",
+    # HIGH IMPACT — these drive the most traffic; always cover when a real story exists
+    "Smartphones & tablets: new India launches with pricing (Samsung, Realme, iQOO, vivo, OnePlus, Nothing, CMF, Xiaomi, Motorola). Budget 5G phones under ₹10k-20k. Best phone comparisons.",
+    "Indian gadget & accessory brands: product launches from Portronics, Zebronics, Ambrane, GoNoise/Noise, Mivi, pTron, Ubon, Bluei, boAt, and similar Made-in-India brands. Earbuds, TWS, power banks, smartwatches.",
+    "Telecom plan changes: Jio vs Airtel tariff hikes, new recharge plan launches, best value plans by budget (₹199/₹299/₹599). Plan comparison with OTT bundling.",
+    "OTT & streaming: JioHotstar content deals, price changes, new shows, sports rights (IPL, cricket). Netflix/Amazon India subscriber news and original content.",
+    "AI tools in India: ChatGPT/Gemini/Perplexity practical use, Indian AI startups, AI features in phones/apps, Hindi-language AI. Consumer-facing AI, not enterprise.",
+
+    # MEDIUM IMPACT — important; cover when a real development happens
+    "Cybersecurity: data breaches affecting Indian users, DPDP Act consumer rights, fraud alerts, phishing/spyware in India. CERT-In advisories.",
+    "TRAI & government policy: rulings that directly change what consumers pay or how they use services. NOT routine monthly subscriber statistics.",
+    "5G networks: new significant rollout, speed benchmarks, real-world coverage comparisons. Not just 'city count reaches X' milestones.",
+
+    # BACKGROUND — cover for editorial completeness, not more than 1/day
+    "Telecom operator strategy: Jio/Airtel/Vi/BSNL business moves that affect consumers — infrastructure, M&A, spectrum auctions.",
+    "India tech startups & markets: funding rounds only if the product directly affects consumers. Not routine valuation updates.",
+    "Chips, semiconductors, hardware manufacturing: when it directly affects India's phone/device availability or pricing.",
 ]
+
+# Story importance — used in selection prompt to distinguish must-cover from filler
+STORY_IMPORTANCE_GUIDE = """
+STORY IMPORTANCE — always ask: "Does a regular Indian consumer need to know this today?"
+
+MUST COVER (prioritise these above all else):
+- New smartphone or gadget launch with India price announced
+- Indian accessory brand (Portronics, Zebronics, Noise, Mivi, pTron, Ambrane, Ubon, boAt) launches a product
+- Jio or Airtel changes a plan price, adds/removes benefits, or launches a new plan
+- OTT platform (JioHotstar, Netflix, Amazon) changes pricing, streaming rights, or announces major content
+- TRAI issues a ruling that changes what consumers pay or receive
+- Cybersecurity breach directly affecting Indian users' data or money
+- New budget 5G phone under ₹15,000 announced for India
+
+SKIP or DE-PRIORITISE (routine updates with low consumer impact):
+- Monthly TRAI subscriber count if you've already covered subscriber news this week
+- "5G reaches X more cities" if you've already covered a 5G expansion this week
+- Generic analyst report predicting growth in a category (no specific news)
+- A startup funding round with no consumer product launch attached
+- Same story you covered yesterday with just updated numbers
+- Press release from a brand that launches no actual product
+
+When the pool has both a "must cover" and a "routine update," always pick the must-cover.
+"""
 
 # Queries for News API (newsapi.org) — balanced across all categories
 NEWS_API_QUERIES = [
-    "Jio Airtel BSNL India telecom 2026",
-    "smartphone launch India price specs",
-    "cybersecurity hack data breach India",
-    "AI artificial intelligence India startup",
-    "OTT streaming Netflix India 2026",
+    "smartphone launch India price 2026",
+    "Jio Airtel plan price change India",
+    "cybersecurity breach India data",
+    "AI tools India launch consumer",
+    "OTT JioHotstar Netflix India content",
 ]
 
 INTERNAL_LINKS = {
@@ -1176,14 +1218,17 @@ def select_story_for_slot(stories: list[dict], slot: int, trending: list[str],
 
 Today's trending keywords: {', '.join(trending)}
 
-The Mobile Times covers ALL of these areas — pick the most newsworthy story that adds something NEW today:
+The Mobile Times covers these areas (ordered by traffic importance — HIGH impact first):
 {coverage_map}
+
+{STORY_IMPORTANCE_GUIDE}
 {covered_note}
 
-Pick the single best story from the list below. Prioritise:
-1. Genuine news value and India relevance
-2. Something from a coverage area not yet covered today
-3. Higher source credibility when stories are otherwise equal
+Pick the single best story. Priority order:
+1. Must-cover events (new device launch, plan change, OTT deal, cybersecurity breach) — always over routine updates
+2. Something from a HIGH IMPACT area if one exists in the pool
+3. Something not yet covered today
+4. Higher source credibility when otherwise equal
 
 RULES:
 - type: always "news"
@@ -1248,16 +1293,18 @@ def select_stories(stories: list[dict], trending: list[str]) -> list[dict]:
 
 Today's trending keywords: {', '.join(trending)}
 
-The Mobile Times covers all of these areas:
+The Mobile Times covers these areas (ordered by traffic importance):
 {coverage_map}
 
-Select the 4 BEST stories from the pool below. Your goal is maximum editorial variety:
-- The 4 stories should collectively span as many DIFFERENT coverage areas as possible
-- Do NOT pick 2 or more stories that are essentially about the same topic or the same area
-- If 3 strong telecom-operator stories exist, still pick only 1 of them — use the other 2 slots for different areas
-- Best story wins within each area — you decide which areas to cover today based on what's available and newsworthy
-- Prioritise India relevance, but include global tech if India news is thin in a particular area
+{STORY_IMPORTANCE_GUIDE}
+
+Select the 4 BEST stories from the pool below. Your goal: maximum consumer impact + editorial variety.
+- Prioritise HIGH IMPACT stories — smartphone launches, gadget launches, plan changes, OTT news, AI tools
+- Span as many DIFFERENT coverage areas as possible across the 4 picks
+- NEVER pick 2 stories about the same topic/area — if you pick a Jio story, no second Jio story
+- Skip routine updates (subscriber counts, analyst reports) when better stories exist
 - Each story used exactly once (no duplicate indices)
+- Prioritise India relevance; global tech only if India news is thin in a category
 
 RULES:
 - type: always "news" for all 4
@@ -2711,7 +2758,7 @@ if __name__ == "__main__":
         story.update({
             "type":          "exclusive",
             "category":      "industry-insights",
-            "tags":          [],
+            "tags":          ["trending"],
             "is_breaking":   False,
             "focus_keyword": " ".join(story["title"].split()[:4]),
         })
@@ -2784,7 +2831,7 @@ if __name__ == "__main__":
             "source":         "TMT Editorial",
             "type":           "exclusive",
             "category":       "industry-insights",
-            "tags":           [],
+            "tags":           ["trending"],
             "is_breaking":    False,
             "focus_keyword":  " ".join(topic.split()[:4]),
         }
