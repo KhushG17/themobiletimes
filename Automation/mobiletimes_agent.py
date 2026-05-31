@@ -245,11 +245,16 @@ BLOG_SUBCATEGORY_CONTEXT = {
         "why they did it, what the data shows, and what others can learn from it."
     ),
     "how-to-guides": (
-        "a practical, step-by-step how-to guide for Indian consumers doing something "
-        "telecom-related. Examples: how to port your number, how to activate 5G on your "
-        "phone, how to pick the best Jio plan for your usage, how to file a TRAI complaint. "
-        "Should be immediately actionable, with numbered steps, and answer the exact query "
-        "people type into Google."
+        "a practical, numbered, step-by-step how-to guide answering a specific 'How do I...' "
+        "question Indian consumers are actively searching. The topic MUST be an action "
+        "someone can take — NEVER a news story or analysis. "
+        "Good examples: 'How to port your number from Airtel to Jio in 5 steps', "
+        "'How to activate 5G on your Android phone', "
+        "'How to choose the best prepaid plan under Rs 300', "
+        "'How to file a complaint with TRAI online', "
+        "'How to check if your area has 5G coverage'. "
+        "Bad — reject these topics: '5G subscribers grow', 'Jio launches plan', any news headline. "
+        "The topic title must start with 'How to' or 'X Steps to'."
     ),
 }
 
@@ -1759,10 +1764,16 @@ Total article body: {NEWS_WORD_TARGET} words. Every paragraph 60–90 words. No 
 ━━ MANDATORY TITLE RULES ━━
 Generate a NEW SEO-optimized title (never copy the source headline):
 • Contains focus keyword "{kw}"
-• Contains 1 power word: Breaking, Major, Critical, Surges, Drops, Launches, Warns, Reveals, Expands, Soars, Boosts, Unveils, Hits, Wins
-• Contains 1 number (2026, a percentage, or a stat)
+• Contains 1 power word — choose what fits the story naturally:
+  Surges, Drops, Launches, Warns, Reveals, Expands, Soars, Boosts, Unveils, Hits,
+  Wins, Slashes, Signs, Targets, Closes, Cuts, Records, Doubles, Triples, Beats
+  DO NOT use "Major" or "Critical" — they are vague and overused. Never start the title with "Major".
+• Contains 1 specific number — STRONGLY prefer a real stat: revenue (₹299, $3.3B),
+  percentage (27%, 40%), subscriber count (524M), price, speed, or capacity.
+  Only use "2026" as the number if absolutely no better stat exists in the story.
+  AVOID appending "in 2026" at the end of a title just to satisfy this rule.
 • 55–70 characters total
-• Sounds like a real headline, NOT AI-generated
+• Sounds like a real journalist wrote it, NOT AI-generated
 
 ━━ VIRAL SEO RULES ━━
 1. FEATURED SNIPPET: The first paragraph after each H2 must directly answer the implied question in 40–55 words. Google shows these as answer boxes.
@@ -2054,8 +2065,13 @@ Total article: {BLOG_WORD_TARGET} words. Every paragraph 60–90 words. No paddi
 ━━ MANDATORY TITLE RULES ━━
 • Derive the best 2–4 word focus keyword from the topic
 • Title must contain that focus keyword
-• Title must contain 1 power word: Breaking, Major, Critical, Surges, Reveals, Warns, Expands, Boosts, Dominates, Fails, Rises, Unveils
-• Title must contain 1 number (2026, percentage, or stat)
+• Title must contain 1 power word — choose what fits naturally:
+  Surges, Reveals, Warns, Expands, Boosts, Dominates, Fails, Rises, Unveils,
+  Launches, Slashes, Targets, Cuts, Doubles, Triples, Records, Signs, Wins
+  DO NOT use "Major" or "Critical" — vague and overused. Never start with "Major".
+• Title must contain 1 specific number — prefer a real stat (revenue, percentage,
+  subscriber count, price) over inserting "2026" as a year suffix.
+  NEVER append "in 2026" at the end just to satisfy this rule.
 • 55–70 characters total — sounds like a real headline, NOT AI-generated
 
 ━━ VIRAL SEO RULES ━━

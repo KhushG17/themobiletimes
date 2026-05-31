@@ -632,9 +632,13 @@ URL: {story['url']}
 Generate a new SEO-optimized breaking news title:
 • Derive the best 2–4 word focus keyword from this story
 • Must contain that focus keyword
-• Must start with or contain a power word: Major, Urgent, Live, Just In, Alert, Launches, Warns, Reveals, Expands, Hits, Surges
-• NEVER prefix the title with "Breaking:" or "Breaking News:" as a label — the urgency must come from the power word woven into the sentence, not as a tag
-• Must contain 1 number (year 2026, percentage, or statistic)
+• Must start with or contain a power word — choose what fits the story:
+  Urgent, Live, Just In, Alert, Launches, Warns, Reveals, Expands, Hits, Surges,
+  Cuts, Slashes, Wins, Signs, Records, Doubles, Targets, Blocks, Fines
+  NEVER use "Major" — it is vague. NEVER prefix with "Breaking:" as a label.
+• Must contain 1 specific number — STRONGLY prefer a real stat from the story
+  (revenue figure, percentage, subscriber count, price, fine amount).
+  Only use "2026" if the story genuinely contains no better number.
 • 55–70 characters total
 
 ━━ WORD COUNT ━━
