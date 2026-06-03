@@ -2884,6 +2884,11 @@ if __name__ == "__main__":
         date_str = datetime.now(IST).isoformat()
         today_str = datetime.now(IST).strftime("%Y-%m-%d")
 
+        # Pre-flight FIRST — before any WP calls that could corrupt the connection pool
+        if not pre_publish_checks():
+            log.error("Pre-publish checks failed — aborting blog post")
+            sys.exit(1)
+
         # Populate recent posts cache so inject_related_links() works
         _recent_posts_cache = get_recent_posts()
 
@@ -2895,11 +2900,6 @@ if __name__ == "__main__":
 
         topic = pick_blog_topic(subcategory, stories)
         log.info(f"  Topic: {topic[:70]}")
-
-        # Pre-flight: verify WordPress is up and auth works before spending Anthropic credits
-        if not pre_publish_checks():
-            log.error("Pre-publish checks failed — aborting blog post")
-            sys.exit(1)
 
         post_data = None
         for attempt in range(2):
