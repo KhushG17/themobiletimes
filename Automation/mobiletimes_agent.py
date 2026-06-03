@@ -2431,7 +2431,6 @@ def ping_indexing(post_url: str):
 
 def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None = None):
     global _recent_posts_cache, _seen_urls
-    _seen_urls = load_seen_urls() or set()
     now_ist   = datetime.now(IST)
     date_str  = now_ist.isoformat()
 
@@ -2442,6 +2441,14 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         log.info(f"TMT Daily Run (all slots) — {now_ist.strftime('%A %d %B %Y %H:%M IST')}")
     log.info("=" * 60)
 
+    # Pre-flight FIRST — before any WP calls that could pollute the connection pool
+    # load_seen_urls() and get_recent_posts() failing before this check was corrupting
+    # the urllib3 pool for themobiletimes.com, causing [Errno 101] on the health check
+    if not pre_publish_checks():
+        log.error("WordPress unreachable at startup — aborting slot run")
+        return
+
+    _seen_urls = load_seen_urls() or set()
     _recent_posts_cache = get_recent_posts()
 
     # ── Single-slot mode (GitHub Actions: one post per trigger) ──────────────
@@ -2494,10 +2501,6 @@ def run_daily(exclusive_tip: str = "", test_mode: bool = False, slot: int | None
         story = select_story_for_slot(stories, slot, trending, already_covered or None)
         if not story:
             log.error(f"Slot {slot} — story selection failed, aborting")
-            return
-
-        # Pre-flight: verify WordPress is up and auth works before spending Anthropic credits
-        if not pre_publish_checks():
             return
 
         post_type = "exclusive" if story.get("type") == "exclusive" else "news"
