@@ -306,7 +306,6 @@ RSS_FEEDS = [
     "https://telecomtalk.info/feed/",
     "https://www.lightreading.com/rss.xml",
     "https://www.fiercetelecom.com/rss.xml",
-    "https://www.rcrwireless.com/feed",
     "https://www.telecompaper.com/rss/news",
     "https://telecoms.com/feed/",
     "https://news.google.com/rss/search?q=jio+airtel+BSNL+telecom+india&hl=en-IN&gl=IN&ceid=IN:en",
@@ -314,14 +313,13 @@ RSS_FEEDS = [
 
     # ── SLOT 2: Devices, gadgets, smartphones, consumer electronics ───────────
     "https://feeds.feedburner.com/gadgets360-latest",
-    "https://www.91mobiles.com/hub/feed/",
-    "https://www.gsmarena.com/rss-news-articles.php3",
+    "https://www.91mobiles.com/feed/",           # was /hub/feed/ → 404, corrected
     "https://www.androidauthority.com/feed/",
     "https://www.digit.in/rss/news",
-    "https://www.notebookcheck.net/News.40.0.html?id=&txt=&mark=0&archive=0&type=0&typemax=255&or=0&perpage=50&rss=1",
     "https://news.google.com/rss/search?q=smartphone+launch+india+price&hl=en-IN&gl=IN&ceid=IN:en",
     "https://news.google.com/rss/search?q=samsung+apple+xiaomi+oneplus+india&hl=en-IN&gl=IN&ceid=IN:en",
     "https://news.google.com/rss/search?q=laptop+tablet+wearable+india+2026&hl=en-IN&gl=IN&ceid=IN:en",
+    "https://news.google.com/rss/search?q=GSMArena+phone+launch+specs+india&hl=en-IN&gl=IN&ceid=IN:en",
 
     # ── SLOT 3: Cybersecurity, AI, policy, regulation ─────────────────────────
     "https://feeds.feedburner.com/TheHackersNews",
@@ -330,7 +328,6 @@ RSS_FEEDS = [
     "https://venturebeat.com/category/ai/feed/",
     "https://www.technologyreview.com/feed/",
     "https://telecomregulatoryauthority.wordpress.com/feed/",
-    "https://policywatch.in/feed/",
     "https://news.google.com/rss/search?q=cybersecurity+hack+india+data+breach&hl=en-IN&gl=IN&ceid=IN:en",
     "https://news.google.com/rss/search?q=AI+artificial+intelligence+india+2026&hl=en-IN&gl=IN&ceid=IN:en",
     "https://news.google.com/rss/search?q=TRAI+DOT+regulation+policy+india&hl=en-IN&gl=IN&ceid=IN:en",
@@ -338,10 +335,8 @@ RSS_FEEDS = [
 
     # ── SLOT 4: OTT, markets, IoT, EV, fintech, innovation ───────────────────
     "https://www.afaqs.com/rss/news.xml",
-    "https://www.exchange4media.com/rss/technology-news.xml",
-    "https://inc42.com/feed/",
-    "https://entrackr.com/feed/",
     "https://www.medianama.com/feed/",
+    "https://inc42.com/feed/",
     "https://news.google.com/rss/search?q=OTT+streaming+netflix+jiocinema+india&hl=en-IN&gl=IN&ceid=IN:en",
     "https://news.google.com/rss/search?q=EV+electric+vehicle+india+2026&hl=en-IN&gl=IN&ceid=IN:en",
     "https://news.google.com/rss/search?q=IoT+smart+devices+india+market&hl=en-IN&gl=IN&ceid=IN:en",
@@ -350,8 +345,6 @@ RSS_FEEDS = [
 
     # ── General India tech (shared pool) ─────────────────────────────────────
     "https://www.livemint.com/rss/technology",
-    "https://www.business-standard.com/rss/technology-10.rss",
-    "https://www.financialexpress.com/industry/technology/feed/",
     "https://techcrunch.com/feed/",
     "https://www.wired.com/feed/rss",
     "https://thenextweb.com/feed/",

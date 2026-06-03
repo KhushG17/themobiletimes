@@ -101,21 +101,17 @@ RSS_FEEDS = [
     "https://economictimes.indiatimes.com/tech/telecom/rssfeeds/13357270.cms",
     "https://telecomtalk.info/feed/",
     "https://www.medianama.com/feed/",
-    "https://entrackr.com/feed/",
-    "https://www.business-standard.com/rss/technology-10.rss",
     "https://www.livemint.com/rss/technology",
     "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms",
-    "https://www.financialexpress.com/industry/technology/feed/",
     "https://inc42.com/feed/",
     "https://yourstory.com/feed",
     # India — Gadgets & Devices
     "https://feeds.feedburner.com/gadgets360-latest",
-    "https://www.91mobiles.com/hub/feed/",
+    "https://www.91mobiles.com/feed/",      # was /hub/feed/ → 404, corrected
     "https://www.digit.in/rss/news",
     # Global — Telecom
     "https://www.lightreading.com/rss.xml",
     "https://www.fiercetelecom.com/rss.xml",
-    "https://www.rcrwireless.com/feed",
     "https://telecomramblings.com/feed/",
     "https://www.capacitymedia.com/rss",
     "https://www.totaltele.com/rss.ashx",
@@ -131,13 +127,10 @@ RSS_FEEDS = [
     "https://krebsonsecurity.com/feed/",
     # Semiconductors & Hardware
     "https://www.eetimes.com/rss/",
-    "https://www.anandtech.com/rss/",
     # Policy & Regulation
     "https://www.telecompaper.com/rss/news",
-    "https://policywatch.in/feed/",
     # OTT & Digital Media
     "https://www.afaqs.com/rss/news.xml",
-    "https://www.exchange4media.com/rss/technology-news.xml",
 ]
 
 NEWS_API_QUERIES = [
